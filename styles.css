@@ -46,8 +46,7 @@ body {
 }
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand-mark {
-  width: 34px; height: 34px; border-radius: 9px; background: var(--primary);
-  color: #fff; font-weight: 700; display: grid; place-items: center; font-size: 18px;
+  width: 36px; height: 36px; border-radius: 9px; object-fit: cover; display: block;
 }
 .brand-text { display: flex; flex-direction: column; line-height: 1.15; }
 .brand-text strong { font-size: 16px; }
@@ -79,9 +78,11 @@ body {
 }
 .book-bar label { font-size: 14px; color: var(--ink-soft); white-space: nowrap; }
 .book-bar select {
-  flex: 1; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px;
-  background: var(--surface-2); color: var(--ink); font-size: 16px; font-weight: 600; cursor: pointer;
+  flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 10px; padding: 11px 10px;
+  background: var(--surface-2); color: var(--ink); font-size: 15px; font-weight: 600; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.book-bar select option { white-space: nowrap; }
 
 /* ---------- Overview ---------- */
 .overview {
