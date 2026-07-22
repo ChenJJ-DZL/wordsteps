@@ -1,0 +1,23 @@
+# 项目内部记忆 / 编辑器缓存
+.workbuddy/
+
+# 构建中间产物（en_defs.js 由缓存生成，缓存本身不入库）
+tools/en_defs_cache.json
+tools/_inc_done.flag
+tools/_inc_state.json
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 已被取代的早期探索脚本（保留 rebuild_v3.py / resume_en_defs.py / validate_build.py）
+tools/build_examples.py
+tools/build_examples_v2.py
+tools/rebuild_authoritative.py
+
+# 依赖与系统
+node_modules/
+npm-debug.log*
+.DS_Store
+Thumbs.db
+*.log

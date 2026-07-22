@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>WordSteps 阶梯背单词</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">W</span>
+      <div class="brand-text">
+        <strong>WordSteps 阶梯背单词</strong>
+        <small>多词库 · 艾宾浩斯复习</small>
+      </div>
+    </div>
+    <button id="btn-accent" class="accent-toggle" title="切换英美发音">🇺🇸 美音</button>
+  </header>
+
+  <!-- ============ 首页：学习概览 ============ -->
+  <main id="view-home" class="view active">
+    <section class="book-bar">
+      <label>单词本</label>
+      <select id="home-book"></select>
+    </section>
+
+    <section class="overview">
+      <div class="stat-card stat-primary">
+        <div class="stat-num" id="stat-due">0</div>
+        <div class="stat-label">今日待复习</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" id="stat-new">0</div>
+        <div class="stat-label">今日新学</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" id="stat-total">0</div>
+        <div class="stat-label">累计学习</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" id="stat-mastered">0</div>
+        <div class="stat-label">已掌握</div>
+      </div>
+    </section>
+
+    <section class="ring-wrap">
+      <div class="ring" id="mastery-ring">
+        <div class="ring-inner">
+          <span id="ring-pct">0%</span>
+          <small>掌握度</small>
+        </div>
+      </div>
+      <ul class="mini-stats">
+        <li><span id="ms-streak">0</span><small>连续学习(天)</small></li>
+        <li><span id="ms-time">0m</span><small>累计时长</small></li>
+        <li><span id="ms-lapses">0</span><small>易忘词</small></li>
+      </ul>
+    </section>
+
+    <section class="quick-actions">
+      <button class="qbtn qbtn-review" id="home-review">
+        <span class="qbtn-ico">🔁</span>
+        <span class="qbtn-title">开始复习</span>
+        <span class="qbtn-sub" id="home-review-sub">0 个单词待复习</span>
+      </button>
+      <div class="learn-row">
+        <button class="qbtn qbtn-learn" id="home-learn">
+          <span class="qbtn-ico">📚</span>
+          <span class="qbtn-title">学习新词</span>
+          <span class="qbtn-sub" id="home-learn-sub">0 个新词待学</span>
+        </button>
+        <button class="inc-toggle" id="home-inc" aria-pressed="false" title="开启后，除基础/初中外，每个词本只显示与上一难度差集的新词">
+          <span class="inc-dot"></span>
+          <span class="inc-label">增量</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h3>今日复习预览</h3>
+      <ul id="due-preview" class="due-preview"></ul>
+    </section>
+  </main>
+
+  <!-- ============ 学习（新词）视图 ============ -->
+  <main id="view-learn" class="view">
+    <div class="subhead">
+      <label>单词本
+        <select id="learn-book"></select>
+      </label>
+      <span class="right-group">
+        <span class="counter" id="learn-counter">0 / 0</span>
+        <span class="cache-badge" id="cache-badge"></span>
+      </span>
+    </div>
+    <div class="card-stage" id="learn-stage"></div>
+    <div class="learn-controls">
+      <button class="btn-ghost" id="learn-skip">跳过</button>
+      <button class="btn-primary" id="learn-done">我记住了 ✓</button>
+    </div>
+  </main>
+
+  <!-- ============ 复习视图 ============ -->
+  <main id="view-review" class="view">
+    <div class="subhead">
+      <span class="counter" id="review-counter">0 / 0</span>
+      <button class="btn-ghost sm" id="review-exit">退出</button>
+    </div>
+    <div class="card-stage" id="review-stage"></div>
+    <div class="rate-controls" id="rate-controls" hidden>
+      <button class="rate rate-bad" data-rate="unknown">😵 不认识</button>
+      <button class="rate rate-mid" data-rate="fuzzy">🤔 模糊</button>
+      <button class="rate rate-good" data-rate="know">😎 认识</button>
+    </div>
+  </main>
+
+  <!-- ============ 学习历史视图 ============ -->
+  <main id="view-history" class="view">
+    <section class="panel">
+      <h3>学习统计（<span id="hist-book-name">—</span>）</h3>
+      <div class="hist-stats">
+        <div><b id="hs-total">0</b><small>累计学习</small></div>
+        <div><b id="hs-new">0</b><small>今日新学</small></div>
+        <div><b id="hs-due">0</b><small>今日待复习</small></div>
+        <div><b id="hs-mastered">0</b><small>已掌握</small></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h3>学习记录</h3>
+      <ul id="session-list" class="session-list"></ul>
+    </section>
+
+    <section class="panel">
+      <h3>已学单词</h3>
+      <div class="filter-row">
+        <input type="search" id="hist-search" placeholder="搜索单词…" />
+        <select id="hist-filter">
+          <option value="all">全部</option>
+          <option value="mastered">已掌握</option>
+          <option value="review">复习中</option>
+          <option value="learning">学习中</option>
+        </select>
+      </div>
+      <ul id="learned-list" class="learned-list"></ul>
+    </section>
+
+    <section class="panel danger-zone">
+      <button class="btn-ghost danger" id="btn-reset">清空当前单词本进度</button>
+      <p class="hint">仅清除本地进度，词库不受影响。</p>
+    </section>
+  </main>
+
+  <!-- 底部导航 -->
+  <nav class="bottombar">
+    <button class="nav-btn active" data-view="home"><span>🏠</span>概览</button>
+    <button class="nav-btn" data-view="learn"><span>📚</span>学习</button>
+    <button class="nav-btn" data-view="review"><span>🔁</span>复习</button>
+    <button class="nav-btn" data-view="history"><span>📈</span>历史</button>
+  </nav>
+
+  <!-- 单词卡模板 -->
+  <template id="card-tpl">
+    <div class="flip-card">
+      <div class="flip-inner">
+        <div class="flip-face flip-front">
+          <button class="speak" data-speak>🔊</button>
+          <div class="word"></div>
+          <div class="ipa"></div>
+          <div class="hint-flip">点击卡片翻面 ↻</div>
+        </div>
+        <div class="flip-face flip-back">
+          <button class="speak" data-speak>🔊</button>
+          <div class="b-head">
+            <div>
+              <div class="word-sm"></div>
+              <div class="ipa-sm"></div>
+            </div>
+          </div>
+          <div class="zh"></div>
+          <div class="en"></div>
+          <div class="block core"><span class="tag">核心意象</span><p class="core-t"></p></div>
+          <div class="block ex-block"><span class="tag">例句</span><p class="ex"></p><p class="ex-zh"></p></div>
+          <div class="sa-grid">
+            <div class="block syn"><span class="tag">近义词</span><div class="chips syn-chips"></div></div>
+            <div class="block ant"><span class="tag">反义词</span><div class="chips ant-chips"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <audio id="player" hidden></audio>
+
+  <script src="books/manifest.js?v=20260722b"></script>
+  <script src="books/en_defs.js?v=20260722b"></script>
+  <script src="app.js?v=20260722b"></script>
+</body>
+</html>
