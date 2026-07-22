@@ -9,7 +9,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260722e";           // 版本号：强制刷新缓存（英文释义/发音改为构建期抓取的本地包 books/en_defs.js，网页加载即离线可用、随版本增量更新；ONLINE_ENRICH 仅兜底）
+  var APP_VER = "20260722g";           // 版本号：强制刷新缓存（英文释义/发音改为构建期抓取的本地包 books/en_defs.js，网页加载即离线可用、随版本增量更新；ONLINE_ENRICH 仅兜底）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 艾宾浩斯间隔：索引0=10分钟(不认识重置)，首次学习进索引1(1天)，随后逐级拉长
@@ -371,8 +371,81 @@
       if (!prev.children.length) prev.innerHTML = '<li class="empty">今天没有需要复习的单词，去学点新词吧 🎉</li>';
       // 后台节流预取整本富化数据（加载网页时即开始）
       startPreCache(id);
+      drawForgetCurve();
     });
   }
+
+  /* ---------- 遗忘曲线进度 ---------- */
+  var FC_S = 20; // 稳定性常数（天）：控制衰减快慢，美观优先，非严谨模型
+  function forgetCurveData() {
+    var DAY = 86400000;
+    var now = startOfDay(Date.now());
+    var daily = new Array(30).fill(0);
+    state.sessions.forEach(function (s) {
+      var ts = s.ts || Date.now();
+      var age = Math.round((now - startOfDay(ts)) / DAY);
+      if (age >= 0 && age < 30) daily[age] += (s.newCount || 0);
+    });
+    var T30 = daily.reduce(function (a, b) { return a + b; }, 0);
+    var xs = [0, 7, 14, 21, 28];
+    var pts = xs.map(function (x) { return T30 * Math.exp(-x / FC_S); });
+    return { T30: T30, xs: xs, pts: pts };
+  }
+  function drawForgetCurve() {
+    var cv = document.getElementById("fc-canvas");
+    if (!cv) return;
+    var d = forgetCurveData();
+    var el30 = document.getElementById("fc-30");
+    if (el30) el30.textContent = Math.round(d.T30 * Math.exp(-28 / FC_S));
+    var ctx = cv.getContext("2d");
+    var dpr = window.devicePixelRatio || 1;
+    var cssW = cv.clientWidth || 200, cssH = cv.clientHeight || 128;
+    cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+    var padL = 10, padR = 10, padT = 8, padB = 16;
+    var plotW = cssW - padL - padR, plotH = cssH - padT - padB;
+    var maxY = Math.max(d.T30, 1);
+    function X(i) { return padL + plotW * (d.xs[i] / 28); }
+    function Y(v) { return padT + plotH * (1 - v / maxY); }
+    // 横向网格
+    ctx.strokeStyle = "rgba(31,39,51,0.06)"; ctx.lineWidth = 1;
+    for (var g = 0; g <= 2; g++) { var gy = padT + plotH * g / 2; ctx.beginPath(); ctx.moveTo(padL, gy); ctx.lineTo(padL + plotW, gy); ctx.stroke(); }
+    if (d.T30 > 0) {
+      // 曲线下渐变填充
+      ctx.beginPath();
+      ctx.moveTo(X(0), Y(d.pts[0]));
+      for (var i = 1; i < d.pts.length; i++) ctx.lineTo(X(i), Y(d.pts[i]));
+      ctx.lineTo(X(d.pts.length - 1), padT + plotH);
+      ctx.lineTo(X(0), padT + plotH);
+      ctx.closePath();
+      var grad = ctx.createLinearGradient(0, padT, 0, padT + plotH);
+      grad.addColorStop(0, "rgba(79,110,247,0.30)");
+      grad.addColorStop(1, "rgba(79,110,247,0.02)");
+      ctx.fillStyle = grad; ctx.fill();
+      // 曲线
+      ctx.beginPath();
+      ctx.moveTo(X(0), Y(d.pts[0]));
+      for (i = 1; i < d.pts.length; i++) ctx.lineTo(X(i), Y(d.pts[i]));
+      ctx.strokeStyle = "#4f6ef7"; ctx.lineWidth = 2.5; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke();
+      // 数据点
+      d.pts.forEach(function (v, i) {
+        ctx.beginPath(); ctx.arc(X(i), Y(v), 3, 0, Math.PI * 2);
+        ctx.fillStyle = "#fff"; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = "#4f6ef7"; ctx.stroke();
+      });
+    } else {
+      ctx.fillStyle = "rgba(154,165,180,0.9)"; ctx.font = "12px sans-serif"; ctx.textAlign = "center";
+      ctx.fillText("开始学习后显示遗忘曲线", padL + plotW / 2, padT + plotH / 2);
+    }
+    // X 轴天数标签
+    ctx.fillStyle = "rgba(154,165,180,0.95)"; ctx.font = "10px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+    d.xs.forEach(function (x, i) { ctx.fillText(x + "天", X(i), padT + plotH + 12); });
+  }
+
+  // 屏幕旋转 / 尺寸变化时重绘曲线（仅首页激活时）
+  window.addEventListener("resize", function () {
+    if (document.getElementById("view-home") && document.getElementById("view-home").classList.contains("active")) drawForgetCurve();
+  });
 
   /* ---------- 学习（新词） ---------- */
   var learnQueue = [], learnIdx = 0;
