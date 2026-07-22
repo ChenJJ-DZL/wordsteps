@@ -45,35 +45,37 @@ body {
   padding: 0 16px; z-index: 50;
 }
 .brand { display: flex; align-items: center; }
-.brand-text { display: flex; flex-direction: column; line-height: 1.15; }
+.brand-text { display: flex; flex-direction: column; gap: 3px; line-height: 1.2; }
 .brand-text strong { font-size: 16px; }
 .brand-text small { color: var(--ink-faint); font-size: 12px; }
-/* 口音切换：与「DAYMODE/NIGHTMODE」同款胶囊开关 —— 圆形图标 + 文字一体化，左右滑动时圆点与文字互换位置 */
+/* 口音切换：胶囊开关，文字恒水平垂直居中，圆点在背景上左右滑动 */
 .accent-pill {
   flex: 0 0 96px; height: 38px; padding: 4px;
+  position: relative;
   border: 1.5px solid var(--line); border-radius: 999px;
   background: var(--surface); color: var(--ink-soft);
   font-weight: 700; font-size: 14px; cursor: pointer;
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; justify-content: center;
   box-shadow: var(--shadow);
-  transition: background .2s ease, border-color .2s ease, color .2s ease, flex-direction .2s ease;
+  transition: background .2s ease, border-color .2s ease, color .2s ease;
   overflow: hidden;
 }
 .accent-circle {
+  position: absolute; top: 4px; left: 4px;
   width: 30px; height: 30px; border-radius: 50%;
   background: #fff;
   display: grid; place-items: center; font-size: 15px; line-height: 1;
   flex: none;
   box-shadow: 0 1px 3px rgba(0,0,0,.12);
+  transition: transform .2s ease;
 }
-.accent-label { font-size: 14px; letter-spacing: .5px; padding: 0 9px; }
+.accent-label { position: relative; z-index: 1; font-size: 14px; letter-spacing: .5px; }
 .accent-pill.on {
   background: var(--primary);
   border-color: var(--primary);
   color: #fff;
-  flex-direction: row-reverse;   /* 圆点与文字左右互换 */
 }
-.accent-pill.on .accent-circle { background: #fff; }
+.accent-pill.on .accent-circle { transform: translateX(55px); }
 
 /* ---------- Views ---------- */
 .view { display: none; max-width: 720px; margin: 0 auto; padding: 16px; }
