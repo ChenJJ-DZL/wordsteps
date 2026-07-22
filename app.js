@@ -9,7 +9,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260722d";           // 版本号：强制刷新缓存（英文释义/发音改为构建期抓取的本地包 books/en_defs.js，网页加载即离线可用、随版本增量更新；ONLINE_ENRICH 仅兜底）
+  var APP_VER = "20260722e";           // 版本号：强制刷新缓存（英文释义/发音改为构建期抓取的本地包 books/en_defs.js，网页加载即离线可用、随版本增量更新；ONLINE_ENRICH 仅兜底）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 艾宾浩斯间隔：索引0=10分钟(不认识重置)，首次学习进索引1(1天)，随后逐级拉长
@@ -78,7 +78,7 @@
     var r = REGISTRY.filter(function (x) { return x.id === id; })[0];
     if (!r) return id;
     var n = bookIncCount(id);
-    return "【" + r.cn + "】" + r.en + (n != null ? " (" + n + " 词)" : "");
+    return "【" + r.cn + "】" + r.en + (n != null ? " (" + n + "词)" : "");
   }
   // 刷新所有用到书名的下拉框与历史标题（词数加载后调用）
   function refreshBookLabels() {
@@ -526,12 +526,15 @@
   document.getElementById("home-review").addEventListener("click", function () { showView("review"); });
   document.getElementById("home-learn").addEventListener("click", function () { showView("learn"); });
   // 「增量」开关：开启后除基础/初中外，每个词本只显示与上一难度差集的新词
+  // 「on」状态挂在父容器 .inc-block 上，使开关 + 问号 整块一起高亮、保持同一边框
   var incBtn = document.getElementById("home-inc");
+  var incBlock = document.getElementById("home-inc-block");
   function refreshInc() {
     if (!incBtn) return;
     var on = !!state.settings.incremental;
     incBtn.setAttribute("aria-pressed", on ? "true" : "false");
     incBtn.classList.toggle("on", on);
+    if (incBlock) incBlock.classList.toggle("on", on);
     var lbl = incBtn.querySelector(".inc-label");
     if (lbl) lbl.textContent = on ? "增量 ✓" : "增量";
   }

@@ -48,18 +48,32 @@ body {
 .brand-text { display: flex; flex-direction: column; line-height: 1.15; }
 .brand-text strong { font-size: 16px; }
 .brand-text small { color: var(--ink-faint); font-size: 12px; }
-/* 口音切换：与「增量」同款的左右滑动开关 */
-.accent-toggle {
-  flex: 0 0 86px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
-  border: 1.5px solid var(--line); border-radius: var(--radius); background: var(--surface);
-  color: var(--ink-faint); font-weight: 700; font-size: 15px; cursor: pointer; box-shadow: var(--shadow);
-  transition: border-color .15s, color .15s, background .15s;
+/* 口音切换：与「DAYMODE/NIGHTMODE」同款胶囊开关 —— 圆形图标 + 文字一体化，左右滑动时圆点与文字互换位置 */
+.accent-pill {
+  flex: 0 0 110px; height: 38px; padding: 4px;
+  border: 1.5px solid var(--line); border-radius: 999px;
+  background: var(--surface); color: var(--ink-soft);
+  font-weight: 700; font-size: 14px; cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between;
+  box-shadow: var(--shadow);
+  transition: background .2s ease, border-color .2s ease, color .2s ease, flex-direction .2s ease;
+  overflow: hidden;
 }
-.accent-dot { position: relative; width: 30px; height: 17px; border-radius: 999px; background: var(--line); transition: background .15s; }
-.accent-dot::after { content: ""; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff; transition: left .15s; }
-.accent-toggle.on { border-color: var(--primary); color: var(--primary); background: color-mix(in srgb, var(--primary) 12%, var(--surface)); }
-.accent-toggle.on .accent-dot { background: var(--primary); }
-.accent-toggle.on .accent-dot::after { left: 15px; }
+.accent-circle {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: #fff;
+  display: grid; place-items: center; font-size: 15px; line-height: 1;
+  flex: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,.12);
+}
+.accent-label { font-size: 14px; letter-spacing: .5px; padding: 0 4px; }
+.accent-pill.on {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  flex-direction: row-reverse;   /* 圆点与文字左右互换 */
+}
+.accent-pill.on .accent-circle { background: #fff; }
 
 /* ---------- Views ---------- */
 .view { display: none; max-width: 720px; margin: 0 auto; padding: 16px; }
@@ -136,26 +150,40 @@ body {
 .qbtn-sub { font-size: 13px; color: var(--ink-faint); }
 .qbtn-review { border-left: 4px solid var(--primary); }
 .qbtn-learn { flex: 1; border-left: 4px solid var(--good); }
-/* 增量开关：紧邻「学习新词」右侧 */
-.inc-toggle {
-  flex: 0 0 86px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
-  border: 1.5px solid var(--line); border-radius: var(--radius); background: var(--surface);
-  color: var(--ink-faint); font-weight: 700; font-size: 15px; cursor: pointer; box-shadow: var(--shadow);
-  transition: border-color .15s, color .15s, background .15s;
+/* 增量开关：与「学习新词」右侧等高；2/3 开关区（上） + 1/3 说明区（下）合并为同一块 */
+.inc-block {
+  flex: 0 0 86px;
+  display: flex; flex-direction: column;
+  border: 1.5px solid var(--line); border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  transition: border-color .15s, background .15s;
 }
-.inc-dot { position: relative; width: 30px; height: 17px; border-radius: 999px; background: var(--line); transition: background .15s; }
-.inc-dot::after { content: ""; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff; transition: left .15s; }
-.inc-toggle.on { border-color: var(--good); color: var(--good); background: color-mix(in srgb, var(--good) 12%, var(--surface)); }
-.inc-toggle.on .inc-dot { background: var(--good); }
-.inc-toggle.on .inc-dot::after { left: 15px; }
-/* 增量开关 + 说明「?」组合 */
-.inc-group { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.inc-block.on { border-color: var(--good); background: color-mix(in srgb, var(--good) 10%, var(--surface)); }
+.inc-toggle {
+  flex: 2 1 0;            /* 上 2/3 触摸区：开关本体 */
+  border: none; background: transparent; border-radius: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+  color: var(--ink-faint); font-weight: 700; font-size: 14px; cursor: pointer;
+  padding: 0; min-height: 0;
+  border-bottom: 1px solid var(--line);
+}
+.inc-block.on .inc-toggle { color: var(--good); }
+.inc-dot { position: relative; width: 28px; height: 15px; border-radius: 999px; background: var(--line); transition: background .15s; }
+.inc-dot::after { content: ""; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px; border-radius: 50%; background: #fff; transition: left .15s; }
+.inc-block.on .inc-dot { background: var(--good); }
+.inc-block.on .inc-dot::after { left: 15px; }
+/* 增量说明「?」：下 1/3 触摸区，与开关一体化 */
 .inc-help {
-  width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--line);
-  background: var(--surface); color: var(--ink-faint); font-size: 13px; font-weight: 700;
+  flex: 1 1 0;            /* 下 1/3 触摸区：说明按钮 */
+  border: none; background: transparent; border-radius: 0;
+  color: var(--ink-faint); font-size: 13px; font-weight: 700;
   cursor: pointer; display: grid; place-items: center; padding: 0; line-height: 1;
 }
-.inc-help:active { transform: scale(.92); }
+.inc-help:hover { color: var(--ink-soft); background: var(--surface-2); }
+.inc-help:active { background: var(--line); }
+.inc-block.on .inc-help { color: var(--good); }
 /* 增量说明浮窗 */
 .popover {
   position: fixed; z-index: 200; max-width: 240px;
