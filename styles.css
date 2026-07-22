@@ -50,7 +50,7 @@ body {
 .brand-text small { color: var(--ink-faint); font-size: 12px; }
 /* 口音切换：与「DAYMODE/NIGHTMODE」同款胶囊开关 —— 圆形图标 + 文字一体化，左右滑动时圆点与文字互换位置 */
 .accent-pill {
-  flex: 0 0 110px; height: 38px; padding: 4px;
+  flex: 0 0 96px; height: 38px; padding: 4px;
   border: 1.5px solid var(--line); border-radius: 999px;
   background: var(--surface); color: var(--ink-soft);
   font-weight: 700; font-size: 14px; cursor: pointer;
@@ -66,7 +66,7 @@ body {
   flex: none;
   box-shadow: 0 1px 3px rgba(0,0,0,.12);
 }
-.accent-label { font-size: 14px; letter-spacing: .5px; padding: 0 4px; }
+.accent-label { font-size: 14px; letter-spacing: .5px; padding: 0 9px; }
 .accent-pill.on {
   background: var(--primary);
   border-color: var(--primary);
@@ -141,9 +141,9 @@ body {
 .quick-actions { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
 
 /* 开始复习 + 遗忘曲线 并排：两列等高、整体压缩到接近「学习新词」行高 */
-.review-zone { display: grid; grid-template-columns: minmax(116px, 1fr) 1.6fr; gap: 12px; align-items: stretch; margin-bottom: 12px; }
+.review-zone { display: grid; grid-template-columns: minmax(140px, 1fr) 1.5fr; gap: 12px; align-items: stretch; margin-bottom: 12px; }
 .review-zone .qbtn-review { height: 100%; padding: 12px 14px; }
-.qbtn-note { font-size: 11px; color: var(--ink-faint); margin-top: 2px; line-height: 1.3; }
+.qbtn-note { font-size: 10px; color: var(--ink-faint); margin-top: 2px; line-height: 1.3; display: block; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .forget-curve { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px 8px; box-shadow: var(--shadow); display: flex; flex-direction: column; min-width: 0; }
 .fc-head { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; margin-bottom: 4px; }
 .fc-title { font-size: 13px; font-weight: 700; color: var(--ink); white-space: nowrap; }
@@ -159,7 +159,7 @@ body {
 }
 .qbtn-ico { font-size: 24px; }
 .qbtn-title { font-weight: 700; font-size: 17px; }
-.qbtn-sub { font-size: 13px; color: var(--ink-faint); }
+.qbtn-sub { font-size: 12px; color: var(--ink-faint); display: block; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .qbtn-review { border-left: 4px solid var(--primary); }
 .qbtn-learn { flex: 1; border-left: 4px solid var(--good); }
 /* 增量开关：与「学习新词」右侧等高；2/3 开关区（上） + 1/3 说明区（下）合并为同一块 */
