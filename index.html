@@ -6,8 +6,8 @@
   <title>WordSteps 阶梯背单词</title>
   <meta name="theme-color" content="#3b6fe0" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="icon" href="favicon.ico?v=6" sizes="any" />
-  <link rel="icon" href="icon.svg?v=6" type="image/svg+xml" />
+  <link rel="icon" href="favicon.ico?v=7" sizes="any" />
+  <link rel="icon" href="icon.svg?v=7" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon-512.png" />
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -52,25 +52,27 @@
     </section>
 
     <section class="ring-wrap">
-      <div class="ring" id="mastery-ring">
-        <div class="ring-inner">
-          <span id="ring-pct">0%</span>
-          <small>掌握度</small>
+      <div class="ring-mastery">
+        <div class="ring" id="mastery-ring">
+          <div class="ring-inner">
+            <span id="ring-pct">0%</span>
+            <small>掌握度</small>
+          </div>
         </div>
+        <ul class="mini-stats">
+          <li><span id="ms-streak">0</span><small>连续学习(天)</small></li>
+          <li><span id="ms-time">0m</span><small>累计时长</small></li>
+          <li><span id="ms-lapses">0</span><small>易忘词</small></li>
+        </ul>
       </div>
-      <ul class="mini-stats">
-        <li><span id="ms-streak">0</span><small>连续学习(天)</small></li>
-        <li><span id="ms-time">0m</span><small>累计时长</small></li>
-        <li><span id="ms-lapses">0</span><small>易忘词</small></li>
-      </ul>
+      <button class="qbtn qbtn-review qbtn-review-merged" id="home-review">
+        <span class="qbtn-ico">🔁</span>
+        <span class="qbtn-title">开始复习</span>
+        <span class="qbtn-sub" id="home-review-sub">0 个待复习</span>
+      </button>
     </section>
 
     <section class="quick-actions">
-      <button class="qbtn qbtn-review" id="home-review">
-        <span class="qbtn-ico">🔁</span>
-        <span class="qbtn-title">开始复习</span>
-        <span class="qbtn-sub" id="home-review-sub">0 个单词待复习</span>
-      </button>
       <div class="learn-row">
         <button class="qbtn qbtn-learn" id="home-learn">
           <span class="qbtn-ico">📚</span>
@@ -82,7 +84,10 @@
             <span class="inc-dot"></span>
             <span class="inc-label">增量</span>
           </button>
-          <button class="inc-help" id="inc-help" aria-label="增量说明" title="增量说明">?</button>
+          <button class="inc-help" id="inc-help" aria-label="增量说明" title="增量说明">
+            <span class="inc-help-dot" aria-hidden="true">?</span>
+            <span>说明</span>
+          </button>
         </div>
       </div>
     </section>
@@ -205,9 +210,9 @@
 
   <audio id="player" hidden></audio>
 
-  <script src="books/manifest.js?v=20260722e"></script>
-  <script src="books/en_defs.js?v=20260722e"></script>
-  <script src="app.js?v=20260722e"></script>
+  <script src="books/manifest.js?v=20260722f"></script>
+  <script src="books/en_defs.js?v=20260722f"></script>
+  <script src="app.js?v=20260722f"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {

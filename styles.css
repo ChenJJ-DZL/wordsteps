@@ -48,32 +48,40 @@ body {
 .brand-text { display: flex; flex-direction: column; line-height: 1.15; }
 .brand-text strong { font-size: 16px; }
 .brand-text small { color: var(--ink-faint); font-size: 12px; }
-/* 口音切换：与「DAYMODE/NIGHTMODE」同款胶囊开关 —— 圆形图标 + 文字一体化，左右滑动时圆点与文字互换位置 */
+/* 口音切换：参考用户截图——蓝色胶囊整块，圆形图标 + 文字"美音/英音"始终居中、始终白色；
+   只有圆点带平滑滑动（transform: translateX），文字位置不动。 */
 .accent-pill {
   flex: 0 0 110px; height: 38px; padding: 4px;
-  border: 1.5px solid var(--line); border-radius: 999px;
-  background: var(--surface); color: var(--ink-soft);
+  border: none; border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
   font-weight: 700; font-size: 14px; cursor: pointer;
-  display: flex; align-items: center; justify-content: space-between;
-  box-shadow: var(--shadow);
-  transition: background .2s ease, border-color .2s ease, color .2s ease, flex-direction .2s ease;
+  display: flex; align-items: center; gap: 8px;
+  box-shadow: 0 4px 12px rgba(79, 110, 247, 0.32);
+  position: relative;
   overflow: hidden;
+  /* 整体仅做圆点滑动动画，颜色不变（始终蓝） */
 }
 .accent-circle {
+  position: absolute; top: 4px; left: 4px;
   width: 30px; height: 30px; border-radius: 50%;
   background: #fff;
   display: grid; place-items: center; font-size: 15px; line-height: 1;
-  flex: none;
-  box-shadow: 0 1px 3px rgba(0,0,0,.12);
+  box-shadow: 0 1px 3px rgba(0,0,0,.18);
+  /* 圆点水平滑动过渡 */
+  transition: transform .22s cubic-bezier(.4, .0, .2, 1);
+  will-change: transform;
 }
-.accent-label { font-size: 14px; letter-spacing: .5px; padding: 0 4px; }
-.accent-pill.on {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: #fff;
-  flex-direction: row-reverse;   /* 圆点与文字左右互换 */
+.accent-pill.on .accent-circle { transform: translateX(72px); }
+.accent-label {
+  position: relative; z-index: 1;       /* 永远在白圆点之上 */
+  flex: 1; text-align: center;          /* 文字始终居中（圆点滑过不影响文字位置） */
+  font-size: 14px; letter-spacing: 1px;
+  padding: 0 6px 0 36px;                /* 左侧为圆点留位，右侧对称 */
+  color: #fff; font-weight: 700;
+  white-space: nowrap;
 }
-.accent-pill.on .accent-circle { background: #fff; }
+.accent-pill.on .accent-label { padding: 0 36px 0 6px; }  /* 英音态把空间让给右侧的圆点 */
 
 /* ---------- Views ---------- */
 .view { display: none; max-width: 720px; margin: 0 auto; padding: 16px; }
@@ -117,26 +125,38 @@ body {
 .stat-label { font-size: 13px; color: var(--ink-soft); margin-top: 7px; }
 
 .ring-wrap {
-  display: flex; align-items: center; gap: 18px; background: var(--surface);
-  border: 1px solid var(--line); border-radius: var(--radius); padding: 18px;
-  box-shadow: var(--shadow); margin-bottom: 16px;
+  display: grid; grid-template-columns: 2fr 1fr; gap: 12px; align-items: stretch;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 16px; box-shadow: var(--shadow); margin-bottom: 16px;
 }
+/* 掌握度（原 ring-wrap 内容）：环形 + 3 项小指标竖排 */
+.ring-mastery { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .ring {
   --pct: 0;
-  width: 104px; height: 104px; border-radius: 50%; flex: none;
+  width: 96px; height: 96px; border-radius: 50%; flex: none;
   background: conic-gradient(var(--primary) calc(var(--pct) * 1%), var(--surface-2) 0);
   display: grid; place-items: center;
 }
 .ring-inner {
-  width: 80px; height: 80px; border-radius: 50%; background: var(--surface);
+  width: 74px; height: 74px; border-radius: 50%; background: var(--surface);
   display: grid; place-items: center; text-align: center; line-height: 1.1;
 }
-.ring-inner span { font-size: 22px; font-weight: 700; }
+.ring-inner span { font-size: 21px; font-weight: 700; }
 .ring-inner small { color: var(--ink-faint); font-size: 12px; }
-.mini-stats { list-style: none; margin: 0; padding: 0; flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.mini-stats { list-style: none; margin: 0; padding: 0; flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .mini-stats li { display: flex; align-items: baseline; gap: 8px; }
-.mini-stats li span { font-size: 20px; font-weight: 700; color: var(--primary); }
-.mini-stats li small { color: var(--ink-soft); font-size: 13px; }
+.mini-stats li span { font-size: 18px; font-weight: 700; color: var(--primary); }
+.mini-stats li small { color: var(--ink-soft); font-size: 12px; }
+/* 「开始复习」按钮：占右 1/3 格，整块可点；垂直水平居中 */
+.qbtn-review-merged {
+  margin: 0; border-left: 4px solid var(--primary);
+  justify-content: center; align-items: center; text-align: center;
+  padding: 10px 8px; gap: 3px;
+  min-width: 0;
+}
+.qbtn-review-merged .qbtn-ico { font-size: 22px; }
+.qbtn-review-merged .qbtn-title { font-size: 15px; }
+.qbtn-review-merged .qbtn-sub { font-size: 12px; }
 
 .quick-actions { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
 .learn-row { display: flex; gap: 12px; align-items: stretch; }
@@ -174,16 +194,26 @@ body {
 .inc-dot::after { content: ""; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px; border-radius: 50%; background: #fff; transition: left .15s; }
 .inc-block.on .inc-dot { background: var(--good); }
 .inc-block.on .inc-dot::after { left: 15px; }
-/* 增量说明「?」：下 1/3 触摸区，与开关一体化 */
+/* 增量说明「?」：下 1/3 触摸区；圆圈问号——固定圆形描边按钮 */
 .inc-help {
   flex: 1 1 0;            /* 下 1/3 触摸区：说明按钮 */
   border: none; background: transparent; border-radius: 0;
   color: var(--ink-faint); font-size: 13px; font-weight: 700;
-  cursor: pointer; display: grid; place-items: center; padding: 0; line-height: 1;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  padding: 0; line-height: 1; gap: 6px;
 }
-.inc-help:hover { color: var(--ink-soft); background: var(--surface-2); }
+.inc-help-dot {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 1.5px solid var(--ink-faint);
+  background: transparent;
+  display: inline-grid; place-items: center;
+  font-size: 11px; line-height: 1; font-weight: 700;
+  transition: border-color .15s, color .15s;
+}
+.inc-help:hover .inc-help-dot { border-color: var(--ink-soft); color: var(--ink-soft); }
 .inc-help:active { background: var(--line); }
 .inc-block.on .inc-help { color: var(--good); }
+.inc-block.on .inc-help-dot { border-color: var(--good); color: var(--good); }
 /* 增量说明浮窗 */
 .popover {
   position: fixed; z-index: 200; max-width: 240px;
