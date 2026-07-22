@@ -9,7 +9,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260722c";           // 版本号：强制刷新缓存（英文释义/发音改为构建期抓取的本地包 books/en_defs.js，网页加载即离线可用、随版本增量更新；ONLINE_ENRICH 仅兜底）
+  var APP_VER = "20260722d";           // 版本号：强制刷新缓存（英文释义/发音改为构建期抓取的本地包 books/en_defs.js，网页加载即离线可用、随版本增量更新；ONLINE_ENRICH 仅兜底）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 艾宾浩斯间隔：索引0=10分钟(不认识重置)，首次学习进索引1(1天)，随后逐级拉长
@@ -78,7 +78,7 @@
     var r = REGISTRY.filter(function (x) { return x.id === id; })[0];
     if (!r) return id;
     var n = bookIncCount(id);
-    return "【" + r.cn + "】" + r.en + (n != null ? " ·" + n : "");
+    return "【" + r.cn + "】" + r.en + (n != null ? " (" + n + " 词)" : "");
   }
   // 刷新所有用到书名的下拉框与历史标题（词数加载后调用）
   function refreshBookLabels() {
@@ -497,10 +497,19 @@
     curSession = null;
   }
 
-  /* ---------- 音标口音切换 ---------- */
+  /* ---------- 音标口音切换（左右滑动开关，与「增量」同款） ---------- */
   var accentBtn = document.getElementById("btn-accent");
-  function refreshAccent() { accentBtn.textContent = state.settings.accent === "uk" ? "🇬🇧 英音" : "🇺🇸 美音"; }
-  accentBtn.addEventListener("click", function () { state.settings.accent = state.settings.accent === "uk" ? "us" : "uk"; saveState(); refreshAccent(); });
+  function refreshAccent() {
+    if (!accentBtn) return;
+    var uk = state.settings.accent === "uk";
+    accentBtn.classList.toggle("on", uk);
+    accentBtn.setAttribute("aria-pressed", uk ? "true" : "false");
+    var lbl = accentBtn.querySelector(".accent-label");
+    if (lbl) lbl.textContent = uk ? "英音" : "美音";
+  }
+  if (accentBtn) accentBtn.addEventListener("click", function () {
+    state.settings.accent = state.settings.accent === "uk" ? "us" : "uk"; saveState(); refreshAccent();
+  });
 
   /* ---------- 单词本选择器 ---------- */
   var homeSel = document.getElementById("home-book"), learnSel = document.getElementById("learn-book");
@@ -534,6 +543,27 @@
     refreshBookLabels();      // 下拉书名（差集词数）即时更新
     if (document.getElementById("view-home").classList.contains("active")) renderHome();
   });
+
+  /* ---------- 增量说明「?」浮窗 ---------- */
+  var incHelp = document.getElementById("inc-help");
+  var incPop = document.getElementById("inc-help-pop");
+  if (incHelp && incPop) {
+    incHelp.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (!incPop.hidden) { incPop.hidden = true; return; }
+      incPop.hidden = false;
+      var r = incHelp.getBoundingClientRect();
+      var pw = incPop.offsetWidth, ph = incPop.offsetHeight;
+      var left = Math.max(8, Math.min(window.innerWidth - pw - 8, r.left + r.width / 2 - pw / 2));
+      var top = r.top - ph - 10;
+      if (top < 8) top = r.bottom + 10;   // 上方空间不足则显示在下方
+      incPop.style.left = left + "px";
+      incPop.style.top = top + "px";
+    });
+    document.addEventListener("click", function (e) {
+      if (!incPop.hidden && e.target !== incHelp && !incPop.contains(e.target)) incPop.hidden = true;
+    });
+  }
 
   /* ---------- 初始化 ---------- */
   fillBookSelect(homeSel); fillBookSelect(learnSel);

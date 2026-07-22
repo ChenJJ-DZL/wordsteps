@@ -6,21 +6,23 @@
   <title>WordSteps 阶梯背单词</title>
   <meta name="theme-color" content="#3b6fe0" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="icon" href="favicon.ico?v=4" sizes="any" />
-  <link rel="icon" href="icon.svg?v=4" type="image/svg+xml" />
+  <link rel="icon" href="favicon.ico?v=5" sizes="any" />
+  <link rel="icon" href="icon.svg?v=5" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon-512.png" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
-      <img class="brand-mark" src="icon-192.png" alt="WordSteps" />
       <div class="brand-text">
         <strong>WordSteps 阶梯背单词</strong>
-        <small>多词库 · 艾宾浩斯复习</small>
+        <small>多词库·艾宾浩斯遗忘曲线复习</small>
       </div>
     </div>
-    <button id="btn-accent" class="accent-toggle" title="切换英美发音">🇺🇸 美音</button>
+    <button id="btn-accent" class="accent-toggle" aria-pressed="false" title="切换英美发音">
+      <span class="accent-dot"></span>
+      <span class="accent-label">美音</span>
+    </button>
   </header>
 
   <!-- ============ 首页：学习概览 ============ -->
@@ -75,10 +77,13 @@
           <span class="qbtn-title">学习新词</span>
           <span class="qbtn-sub" id="home-learn-sub">0 个新词待学</span>
         </button>
-        <button class="inc-toggle" id="home-inc" aria-pressed="false" title="开启后，除基础/初中外，每个词本只显示与上一难度差集的新词">
-          <span class="inc-dot"></span>
-          <span class="inc-label">增量</span>
-        </button>
+        <div class="inc-group">
+          <button class="inc-toggle" id="home-inc" aria-pressed="false" title="开启后，除基础/初中外，每个词本只显示与上一难度差集的新词">
+            <span class="inc-dot"></span>
+            <span class="inc-label">增量</span>
+          </button>
+          <button class="inc-help" id="inc-help" aria-label="增量说明" title="增量说明">?</button>
+        </div>
       </div>
     </section>
 
@@ -196,11 +201,13 @@
     </div>
   </template>
 
+  <div id="inc-help-pop" class="popover" hidden>开启后将只显示当前单词书对比上本的新增单词</div>
+
   <audio id="player" hidden></audio>
 
-  <script src="books/manifest.js?v=20260722c"></script>
-  <script src="books/en_defs.js?v=20260722c"></script>
-  <script src="app.js?v=20260722c"></script>
+  <script src="books/manifest.js?v=20260722d"></script>
+  <script src="books/en_defs.js?v=20260722d"></script>
+  <script src="app.js?v=20260722d"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
