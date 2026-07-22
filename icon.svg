@@ -1,10 +1,43 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#5B8DEF"/>
-      <stop offset="1" stop-color="#2B4FC0"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7DA8F0"/>
+      <stop offset="1" stop-color="#5680D9"/>
     </linearGradient>
+    <clipPath id="round">
+      <rect x="0" y="0" width="1024" height="1024" rx="230" ry="230"/>
+    </clipPath>
   </defs>
-  <rect width="512" height="512" fill="url(#g)"/>
-  <polygon fill="#ffffff" points="92.16,419.84 92.16,337.92 174.08,337.92 174.08,256 256,256 256,174.08 337.92,174.08 337.92,92.16 419.84,92.16 419.84,419.84"/>
+  <g clip-path="url(#round)">
+    <!-- 背景渐变 -->
+    <rect width="1024" height="1024" fill="url(#bg)"/>
+    <!-- 左上：双卡（白半透明） -->
+    <g transform="translate(245,310)">
+      <!-- 后卡（含横线） -->
+      <rect x="0" y="40" width="280" height="200" rx="34" fill="rgba(255,255,255,0.36)" stroke="rgba(255,255,255,0.55)" stroke-width="3"/>
+      <rect x="50" y="108" width="180" height="12" rx="6" fill="rgba(74,111,181,0.7)"/>
+      <rect x="50" y="140" width="180" height="12" rx="6" fill="rgba(74,111,181,0.7)"/>
+      <rect x="50" y="172" width="180" height="12" rx="6" fill="rgba(74,111,181,0.7)"/>
+      <!-- 前卡（含 A） -->
+      <rect x="60" y="0" width="280" height="200" rx="34" fill="rgba(255,255,255,0.55)" stroke="rgba(255,255,255,0.75)" stroke-width="3"/>
+      <text x="200" y="118" font-family="Segoe UI, Arial, sans-serif" font-weight="bold" font-size="160" fill="#4A6FB5" text-anchor="middle">A</text>
+    </g>
+    <!-- 阶梯 (w/o/r/d) -->
+    <g>
+      <rect x="180" y="438" width="600" height="242" rx="26" fill="#FFFFFF"/>
+      <rect x="330" y="328" width="450" height="352" rx="26" fill="#FFFFFF"/>
+      <rect x="480" y="218" width="300" height="462" rx="26" fill="#FFFFFF"/>
+      <rect x="630" y="108" width="150" height="572" rx="26" fill="#FFFFFF"/>
+      <text x="300"  y="600" font-family="Segoe UI, Arial, sans-serif" font-weight="bold" font-size="80" fill="#4A6FB5" text-anchor="middle">w</text>
+      <text x="450"  y="545" font-family="Segoe UI, Arial, sans-serif" font-weight="bold" font-size="80" fill="#4A6FB5" text-anchor="middle">o</text>
+      <text x="600"  y="490" font-family="Segoe UI, Arial, sans-serif" font-weight="bold" font-size="80" fill="#4A6FB5" text-anchor="middle">r</text>
+      <text x="750"  y="435" font-family="Segoe UI, Arial, sans-serif" font-weight="bold" font-size="80" fill="#4A6FB5" text-anchor="middle">d</text>
+    </g>
+    <!-- 底部弧形 banner -->
+    <path d="M 0,768 C 200,720 824,720 1024,768 L 1024,1024 L 0,1024 Z" fill="#3D5BB5"/>
+    <path d="M 0,768 C 200,720 824,720 1024,768" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="4"/>
+    <text x="512" y="880" font-family="Segoe UI, Arial, sans-serif" font-weight="bold" font-size="120" fill="#FFFFFF" text-anchor="middle">wordsteps</text>
+    <text x="512" y="970" font-family="Microsoft YaHei, sans-serif" font-size="50" fill="#FFFFFF" text-anchor="middle" letter-spacing="2">— 阶梯单词 —</text>
+  </g>
 </svg>
