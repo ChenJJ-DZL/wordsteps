@@ -103,6 +103,26 @@ body {
 }
 .book-bar select option { white-space: nowrap; }
 
+/* ---------- Sort bar（字母 / 词频 / 词根 分段控件） ---------- */
+.sort-bar {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 12px 16px; box-shadow: var(--shadow); margin-bottom: 16px;
+  display: flex; align-items: center; gap: 12px;
+}
+.sort-bar label { font-size: 14px; color: var(--ink-soft); white-space: nowrap; }
+.sort-seg { flex: 1; display: flex; background: var(--surface-2); border-radius: 999px; padding: 4px; gap: 4px; }
+.sort-seg button {
+  flex: 1; border: none; background: transparent; border-radius: 999px;
+  padding: 8px 0; font-size: 14px; font-weight: 700; color: var(--ink-soft); cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+.sort-seg button.on { background: var(--primary); color: #fff; box-shadow: 0 2px 6px rgba(79,110,247,.25); }
+/* 卡片正面词根角标 */
+.root-badge {
+  display: inline-block; font-size: 13px; font-weight: 700; color: var(--primary);
+  background: var(--primary-soft); border-radius: 999px; padding: 3px 12px; margin-top: 10px;
+}
+
 /* ---------- Overview ---------- */
 .overview {
   display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px;

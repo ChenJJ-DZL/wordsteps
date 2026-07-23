@@ -9,7 +9,7 @@
   <link rel="icon" href="favicon.ico?v=8" sizes="any" />
   <link rel="icon" href="icon.svg?v=8" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon-512.png" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=20260723a" />
 </head>
 <body>
   <header class="topbar">
@@ -30,6 +30,15 @@
     <section class="book-bar">
       <label>单词本</label>
       <select id="home-book"></select>
+    </section>
+
+    <section class="sort-bar">
+      <label>排序</label>
+      <div class="sort-seg" id="home-sort">
+        <button data-mode="alpha">字母</button>
+        <button data-mode="freq">词频</button>
+        <button data-mode="root" class="on">词根</button>
+      </div>
     </section>
 
     <section class="overview">
@@ -188,6 +197,7 @@
         <div class="flip-face flip-front">
           <button class="speak" data-speak>🔊</button>
           <div class="word"></div>
+          <span class="root-badge" style="display:none"></span>
           <div class="ipa"></div>
           <div class="hint-flip">点击卡片翻面 ↻</div>
         </div>
@@ -216,9 +226,9 @@
 
   <audio id="player" hidden></audio>
 
-  <script src="books/manifest.js?v=20260722g"></script>
-  <script src="books/en_defs.js?v=20260722g"></script>
-  <script src="app.js?v=20260722g"></script>
+  <script src="books/manifest.js?v=20260723a"></script>
+  <script src="books/en_defs.js?v=20260723a"></script>
+  <script src="app.js?v=20260723a"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {

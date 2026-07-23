@@ -9,7 +9,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260722g";           // 版本号：强制刷新缓存（英文释义/发音改为构建期抓取的本地包 books/en_defs.js，网页加载即离线可用、随版本增量更新；ONLINE_ENRICH 仅兜底）
+  var APP_VER = "20260723a";           // 版本号：强制刷新缓存（英文释义/发音改为构建期抓取的本地包 books/en_defs.js，网页加载即离线可用、随版本增量更新；ONLINE_ENRICH 仅兜底）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 艾宾浩斯间隔：索引0=10分钟(不认识重置)，首次学习进索引1(1天)，随后逐级拉长
@@ -20,7 +20,7 @@
   function loadState() {
     try { var r = localStorage.getItem(STORE_KEY); if (r) return JSON.parse(r); } catch (e) {}
     return {
-      settings: { accent: "us", book: (REGISTRY[0] && REGISTRY[0].id) || "ogden", incremental: false },
+      settings: { accent: "us", book: (REGISTRY[0] && REGISTRY[0].id) || "ogden", incremental: false, bookSort: {} },
       streak: { lastDate: "", count: 0 }, sessions: [], cache: {}, books: {}
     };
   }
@@ -100,7 +100,42 @@
       var prev = prevUnionKeys(curBook());
       ws = ws.filter(function (v) { return !prev[wkey(v.w)]; });
     }
-    return ws;
+    return sortWords(ws, sortMode(curBook()));
+  }
+  // 单本内排序方式（可逐本覆盖；所有本默认「词根」：聚类 + 跨天交错）
+  var DEFAULT_SORT = "root";
+  function sortMode(id) {
+    return (state.settings.bookSort && state.settings.bookSort[id]) || DEFAULT_SORT;
+  }
+  // 词根序：按 root 聚类 + 轮转交错，保证同根词分散到不同位置（避免密集聚类的前摄干扰）；
+  // 无 root 的词（'_'+词）各自成组，同样参与交错。字母/词频序分别按词形与词频(collins 星级)排序。
+  function sortWords(words, mode) {
+    if (mode === "freq") {
+      return words.slice().sort(function (a, b) {
+        var fa = (a.freq != null ? a.freq : -1), fb = (b.freq != null ? b.freq : -1);
+        if (fb !== fa) return fb - fa;               // collins 星级高（更常用）在前
+        return (a.w || "").localeCompare(b.w || "");
+      });
+    }
+    if (mode === "alpha") {
+      return words.slice().sort(function (a, b) { return (a.w || "").localeCompare(b.w || ""); });
+    }
+    var g = {}, i, k;
+    words.forEach(function (w) {
+      var key = w.root || ("_" + (w.w || ""));
+      (g[key] = g[key] || []).push(w);
+    });
+    var ks = Object.keys(g).sort(function (a, b) { return g[b].length - g[a].length; });
+    var out = [], idx = 0, any = true;
+    while (any) {
+      any = false;
+      for (i = 0; i < ks.length; i++) {
+        var arr = g[ks[i]];
+        if (arr.length > idx) { out.push(arr[idx]); any = true; }
+      }
+      idx++;
+    }
+    return out;
   }
 
   /* ---------- 时间工具 ---------- */
@@ -258,6 +293,11 @@
     var ipa = bw.ipa_uk || bw.ipa_us || "";
     node.querySelector(".word").textContent = bw.w;
     node.querySelector(".ipa").textContent = ipa;
+    var rootBadge = node.querySelector(".root-badge");
+    if (rootBadge) {
+      if (bw.root) { rootBadge.style.display = "inline-block"; rootBadge.textContent = "根：-" + bw.root + "-"; }
+      else { rootBadge.style.display = "none"; }
+    }
     node.querySelector(".word-sm").textContent = bw.w;
     node.querySelector(".ipa-sm").textContent = ipa;
     node.querySelector(".zh").textContent = bw.zh || "";
@@ -350,6 +390,7 @@
   function renderHome() {
     var id = curBook();
     loadBook(id, function () {
+      refreshSort();
       var s = stats(id);
       document.getElementById("stat-due").textContent = s.due;
       document.getElementById("stat-new").textContent = s.newToday;
@@ -593,6 +634,22 @@
   }
   homeSel.addEventListener("change", function () { state.settings.book = homeSel.value; saveState(); learnSel.value = curBook(); renderHome(); });
   learnSel.addEventListener("change", function () { state.settings.book = learnSel.value; saveState(); homeSel.value = curBook(); showView("learn"); });
+
+  /* ---------- 排序方式开关（字母 / 词频 / 词根，逐本记忆，默认全部词根） ---------- */
+  var sortSeg = document.getElementById("home-sort");
+  function refreshSort() {
+    if (!sortSeg) return;
+    var m = sortMode(curBook());
+    Array.prototype.forEach.call(sortSeg.querySelectorAll("button"), function (b) {
+      b.classList.toggle("on", b.dataset.mode === m);
+    });
+  }
+  if (sortSeg) sortSeg.addEventListener("click", function (e) {
+    var btn = e.target.closest("button[data-mode]"); if (!btn) return;
+    state.settings.bookSort[curBook()] = btn.dataset.mode; saveState();
+    refreshSort();
+    if (document.getElementById("view-home").classList.contains("active")) renderHome();
+  });
 
   /* ---------- 导航 ---------- */
   document.querySelectorAll(".nav-btn").forEach(function (b) { b.addEventListener("click", function () { showView(b.dataset.view); }); });

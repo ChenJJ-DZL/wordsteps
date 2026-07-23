@@ -48,6 +48,57 @@ def norm_case(w):
     w = re.sub(r"[^A-Za-z0-9'\-]", "", w)    # 去空格等非字母数字，保留大小写
     return w
 
+# ---------------- 词根聚类（词根词缀法：构建期给每个词打 root 标签） ----------------
+# ROOT_LIST：常见拉丁/希腊词根串；匹配时取「最长命中」，先尝试剥前缀再匹配以降低误判。
+# 仅用于单本内「词根序」的聚类 + 跨天交错（避免同根词密集成块导致前摄干扰），不参与其他逻辑。
+ROOT_LIST = [
+    "act","aud","bell","bene","bon","bio","cap","cept","cip","capt","ced","ceed","cess","chron",
+    "cid","cis","civ","clar","cogn","cord","corp","cosm","cred","cruc","cub","cumb","cur","curs",
+    "dem","demo","derm","dict","doc","doct","domin","duc","duct","dyn","equ","err","fac","fact",
+    "fic","fect","fer","fid","fin","flagr","flam","flect","flex","flor","flu","flux","fort","forc",
+    "found","form","frag","fract","frat","fus","fund","gen","gener","geo","grad","gress","gram",
+    "graph","grat","grav","greg","hab","hibit","helio","heter","hom","horr","hum","hydr","hypn",
+    "ign","ject","junct","jur","just","juven","lab","labor","langu","lingu","lapid","lat","lav",
+    "leg","lex","lect","lev","liber","libr","lic","lin","liter","loc","loqu","log","logy","luc",
+    "lum","lud","magn","man","manu","mater","matr","medi","mega","mem","mens","ment","merc","migr",
+    "min","miss","mit","mob","mot","mov","mon","mono","mort","morph","multi","mut","nat","nas",
+    "nav","naut","nec","neg","neur","nihil","noc","nox","nom","nomin","nov","numer","nutri","onym",
+    "oper","opt","ora","ordin","orn","paci","pan","par","pare","pat","pass","path","ped","pod",
+    "pel","puls","pend","pens","pet","phil","phon","photo","plat","pli","plic","ply","plex","plor",
+    "pne","pol","port","pos","pon","post","pound","pot","prehend","prim","prob","prov","psych",
+    "publ","pur","pyr","quer","quest","quir","quie","rad","reg","rect","rid","ris","rod","rupt",
+    "sacr","sanct","sal","san","sat","satis","sci","scrib","script","sect","sed","sess","sid",
+    "sens","sent","sequ","secu","sert","sig","sign","simil","simul","sol","son","soph","spec",
+    "spic","sper","spir","stell","struct","suad","sum","super","syn","sym","tang","tact","techn",
+    "tele","tem","ten","tend","term","terr","test","tex","the","theo","therm","tim","tom","ton",
+    "tort","tract","trib","trop","tru","turb","typ","uni","urb","us","ut","vac","van","val","vari",
+    "ven","vent","ver","verb","vers","vert","viv","vic","vict","vid","vis","voc","vok","vol","volv",
+    "vor","vuln","zo",
+]
+# 常见前缀：匹配前先剥掉，避免前缀干扰词根识别（如 respect -> 剥 re -> spect）
+PREFIXES = ["counter","retro","ultra","circum","hetero","hypo","macro","micro","mono","multi",
+    "photo","proto","super","trans","tri","anti","auto","bi","co","de","dis","en","ex","fore","in",
+    "inter","mid","mis","non","out","over","peri","post","pre","pro","re","semi","sub","tele","un",
+    "under","up","with","ab","ad","com","con","contra","equi","extra","hyper","intro","para","syn",
+    "sym","di","hemi","holo","iso","meta","neo","pan","poly","pseudo","supra","vice","ante","apo",
+    "cata","dys","ecto","endo","eu","ortho","geo","bio"]
+PREFIXES.sort(key=len, reverse=True)
+
+def root_of(w):
+    """返回词根串（最长命中），无则 ''。仅用于单本内「词根序」聚类+交错。"""
+    w = norm(w)
+    if not w: return ""
+    cands = [w]
+    for p in PREFIXES:
+        if w.startswith(p) and len(w) > len(p) + 1:
+            cands.append(w[len(p):])
+    best = ""
+    for c in cands:
+        for r in ROOT_LIST:
+            if r in c and len(r) > len(best):
+                best = r
+    return best
+
 # ---------------- 各源加载器 ----------------
 def load_pluto3500():
     """以音标行([...])为锚点解析，容忍文件缺行/多行导致的 3 行对齐错位；严格掐前 3500 条=官方大纲。"""
@@ -258,7 +309,7 @@ def load_example_map():
             log("  kajweb 例句加载失败 %s: %s" % (zip_name, e))
     return ex_map
 
-# ---------------- ECDICT 兜底音标+中文 ----------------
+# ---------------- ECDICT 兜底音标+中文+词频 ----------------
 def build_ecdict_map(needed):
     p = cache("ecdict.csv", "https://raw.githubusercontent.com/skywind3000/ECDICT/master/ecdict.csv", binary=True)
     mp = {}
@@ -268,9 +319,13 @@ def build_ecdict_map(needed):
             if len(row) < 4: continue
             w = row[0].strip().lower()
             if w in needed:
-                ph = row[1].strip().strip("/[]").strip()
-                tr = row[3].strip()
-                mp[w] = (ph, tr)
+                ph = row[1].strip().strip("/[]").strip() if len(row) > 1 else ""
+                tr = row[3].strip() if len(row) > 3 else ""
+                collins = 0
+                if len(row) > 5:
+                    try: collins = int(row[5].strip())
+                    except Exception: collins = 0
+                mp[w] = (ph, tr, collins)
     return mp
 
 # ---------------- 并集 ----------------
@@ -318,7 +373,7 @@ def main():
         needed.update(u.keys())
     log("  needed 词数(去重后各本并集键): %d" % len(needed))
 
-    log("== 3) ECDICT 兜底音标+中文 ==")
+    log("== 3) ECDICT 兜底音标+中文+词频 ==")
     ecd = build_ecdict_map({k.lower() for k in needed})
     log("  ECDICT 命中 needed: %d / %d" % (len(ecd), len(needed)))
 
@@ -333,13 +388,16 @@ def main():
         for k, e in u.items():
             w = e["w"].strip()
             if not w: continue
-            ecd_ph, ecd_tr = ecd.get(k.lower(), ("", ""))
+            ecd_ph, ecd_tr, ecd_col = ecd.get(k.lower(), ("", "", 0))
             ipa = e.get("ipa") or ecd_ph
             ipa_us = e.get("ipa_us") or ecd_ph
             ipa_uk = e.get("ipa_uk") or ecd_ph
             zh = e.get("zh") or ecd_tr
             ex, exz, syn, ant = ex_map.get(k.lower(), ("", "", "", ""))
+            fam = root_of(w)
             o = {"w": w}
+            if fam: o["root"] = fam
+            if ecd_col: o["freq"] = ecd_col
             if zh: o["zh"] = zh
             if ipa: o["ipa"] = ipa
             if ipa_us: o["ipa_us"] = ipa_us
@@ -363,7 +421,10 @@ def main():
         for k, e in u.items():
             w = norm(e["w"])              # 统一用小写 alnum 键，与前端 normJs 对齐
             if w: en_words.add(w)
-    build_en_defs(en_words)
+    if os.environ.get("SKIP_EN_DEFS"):
+        log("  (SKIP_EN_DEFS 已设置，跳过在线英文释义包重建；仅词书字段已更新)")
+    else:
+        build_en_defs(en_words)
     log("DONE")
 
 
