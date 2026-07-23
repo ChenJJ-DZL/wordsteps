@@ -9,7 +9,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260723a";           // 版本号：强制刷新缓存（英文释义/发音改为构建期抓取的本地包 books/en_defs.js，网页加载即离线可用、随版本增量更新；ONLINE_ENRICH 仅兜底）
+  var APP_VER = "20260723b";           // 版本号：强制刷新缓存（英文释义/发音改为构建期抓取的本地包 books/en_defs.js，网页加载即离线可用、随版本增量更新；ONLINE_ENRICH 仅兜底）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 艾宾浩斯间隔：索引0=10分钟(不认识重置)，首次学习进索引1(1天)，随后逐级拉长
@@ -18,11 +18,26 @@
   /* ---------- 状态 ---------- */
   var state = loadState();
   function loadState() {
-    try { var r = localStorage.getItem(STORE_KEY); if (r) return JSON.parse(r); } catch (e) {}
-    return {
+    // 默认骨架：新增字段(如 bookSort)必须有默认值，老用户 localStorage 的 state 才不会被覆盖成 undefined
+    var def = {
       settings: { accent: "us", book: (REGISTRY[0] && REGISTRY[0].id) || "ogden", incremental: false, bookSort: {} },
       streak: { lastDate: "", count: 0 }, sessions: [], cache: {}, books: {}
     };
+    try {
+      var r = localStorage.getItem(STORE_KEY);
+      if (r) {
+        var s = JSON.parse(r);
+        // 深合并：settings 逐层合并，确保老存档缺失的新字段(如 bookSort)沿用默认
+        def.settings = Object.assign({}, def.settings, s.settings || {});
+        if (!def.settings.bookSort) def.settings.bookSort = {};
+        if (s.streak) def.streak = s.streak;
+        if (Array.isArray(s.sessions)) def.sessions = s.sessions;
+        if (s.cache) def.cache = s.cache;
+        if (s.books) def.books = s.books;
+        return def;
+      }
+    } catch (e) {}
+    return def;
   }
   function saveState() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
   function bookRecs(id) { if (!state.books[id]) state.books[id] = { records: {} }; return state.books[id].records; }
@@ -646,6 +661,7 @@
   }
   if (sortSeg) sortSeg.addEventListener("click", function (e) {
     var btn = e.target.closest("button[data-mode]"); if (!btn) return;
+    if (!state.settings.bookSort) state.settings.bookSort = {};   // 防御性兜底，避免老存档缺失字段时报错
     state.settings.bookSort[curBook()] = btn.dataset.mode; saveState();
     refreshSort();
     if (document.getElementById("view-home").classList.contains("active")) renderHome();
