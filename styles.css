@@ -162,31 +162,8 @@ body {
 
 .quick-actions { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
 
-/* 学习新词按钮 = 学习区（图标 + 标题 + 小字）+ 每日一句（英文 + 中文）左右两栏 */
-.qbtn-learn { flex: 1; flex-direction: row; align-items: center; gap: 16px; flex-wrap: wrap; }
-.learn-side { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; flex: 0 0 auto; min-width: 0; }
-.learn-quote {
-  flex: 1 1 220px; min-width: 0;
-  display: flex; flex-direction: column; gap: 4px;
-  padding-left: 16px; border-left: 1px solid var(--line);
-}
-.lq-en {
-  font-family: Georgia, "Times New Roman", "Source Han Serif SC", serif;
-  font-size: 16px; font-style: italic; line-height: 1.45; color: var(--ink);
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-  text-overflow: ellipsis; word-break: break-word;
-}
-.lq-zh {
-  font-size: 12.5px; color: var(--ink-soft); line-height: 1.5;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-  text-overflow: ellipsis; word-break: break-word;
-}
-@media (max-width: 480px) {
-  /* 极窄屏：每日一句放到下一行，避免挤压图标 */
-  .qbtn-learn { gap: 12px; }
-  .learn-quote { padding-left: 0; border-left: none; flex-basis: 100%; border-top: 1px dashed var(--line); padding-top: 10px; }
-  .lq-en { font-size: 15px; }
-}
+/* 学习新词按钮：图标 + 标题 + 小字 竖向排列 */
+.qbtn-learn { flex: 1; }
 
 /* 开始复习 + 遗忘曲线 并排：两列等高、整体高度贴近「学习新词」行，封顶 116px 防止 PC 端被 canvas 撑成长条 */
 .review-zone { display: grid; grid-template-columns: minmax(140px, 1fr) 1.5fr; gap: 12px; align-items: stretch; margin-bottom: 12px; height: 116px; }
