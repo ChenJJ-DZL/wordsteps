@@ -9,7 +9,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260723c";           // 版本号：强制刷新缓存（英文释义/发音改为构建期抓取的本地包 books/en_defs.js，网页加载即离线可用、随版本增量更新；ONLINE_ENRICH 仅兜底）
+  var APP_VER = "20260723d";           // 版本号：强制刷新缓存（每日一句 widget 上线；学习新词 + 每日一句 PC 端并排填空白）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 艾宾浩斯间隔：索引0=10分钟(不认识重置)，首次学习进索引1(1天)，随后逐级拉长
@@ -485,6 +485,7 @@
       // 后台节流预取整本富化数据（加载网页时即开始）
       startPreCache(id);
       drawForgetCurve();
+      renderDailyQuote();
     });
   }
 
@@ -770,6 +771,79 @@
       if (!incPop.hidden && e.target !== incHelp && !incPop.contains(e.target)) incPop.hidden = true;
     });
   }
+
+  /* ---------- 每日一句（精选 40 句经典英文，按当天日期切换，「换一句」可手动偏移） ---------- */
+  var DAILY_QUOTES = [
+    { en: "The only thing we have to fear is fear itself.", zh: "我们唯一应该恐惧的是恐惧本身。", by: "Franklin D. Roosevelt" },
+    { en: "I think, therefore I am.", zh: "我思故我在。", by: "René Descartes" },
+    { en: "To be, or not to be, that is the question.", zh: "生存还是毁灭，这是一个问题。", by: "Shakespeare" },
+    { en: "All that glitters is not gold.", zh: "闪光的不一定都是金子。", by: "Shakespeare" },
+    { en: "The journey of a thousand miles begins with a single step.", zh: "千里之行，始于足下。", by: "Lao Tzu" },
+    { en: "Where there is a will, there is a way.", zh: "有志者，事竟成。", by: "Thomas Edison" },
+    { en: "Knowledge is power.", zh: "知识就是力量。", by: "Francis Bacon" },
+    { en: "Practice makes perfect.", zh: "熟能生巧。", by: "English Proverb" },
+    { en: "Time is money.", zh: "时间就是金钱。", by: "Benjamin Franklin" },
+    { en: "The early bird catches the worm.", zh: "早起的鸟儿有虫吃。", by: "English Proverb" },
+    { en: "Actions speak louder than words.", zh: "事实胜于雄辩。", by: "English Proverb" },
+    { en: "A picture is worth a thousand words.", zh: "一图胜千言。", by: "English Proverb" },
+    { en: "Don't judge a book by its cover.", zh: "不要以貌取人。", by: "English Proverb" },
+    { en: "Every cloud has a silver lining.", zh: "黑暗中总有一线光明。", by: "English Proverb" },
+    { en: "Rome was not built in a day.", zh: "罗马不是一天建成的。", by: "English Proverb" },
+    { en: "When in Rome, do as the Romans do.", zh: "入乡随俗。", by: "English Proverb" },
+    { en: "Where there is smoke, there is fire.", zh: "事出必有因。", by: "English Proverb" },
+    { en: "You can't have your cake and eat it too.", zh: "鱼与熊掌不可兼得。", by: "English Proverb" },
+    { en: "Two heads are better than one.", zh: "三个臭皮匠赛过诸葛亮。", by: "English Proverb" },
+    { en: "It is never too late to learn.", zh: "活到老，学到老。", by: "English Proverb" },
+    { en: "Better late than never.", zh: "迟做总比不做好。", by: "English Proverb" },
+    { en: "A friend in need is a friend indeed.", zh: "患难见真情。", by: "English Proverb" },
+    { en: "All's well that ends well.", zh: "结局好，一切都好。", by: "Shakespeare" },
+    { en: "Easier said than done.", zh: "说起来容易做起来难。", by: "English Proverb" },
+    { en: "The pen is mightier than the sword.", zh: "笔锋胜于剑芒。", by: "Edward Bulwer-Lytton" },
+    { en: "Nothing is impossible to a willing heart.", zh: "心之所愿，无事不成。", by: "English Proverb" },
+    { en: "Where there is love, there is life.", zh: "有爱就有生命。", by: "Mahatma Gandhi" },
+    { en: "Life is what happens when you're busy making other plans.", zh: "生活就是当你忙于做其他计划时，发生的事。", by: "John Lennon" },
+    { en: "Be the change you wish to see in the world.", zh: "欲变世界，先变其身。", by: "Mahatma Gandhi" },
+    { en: "Stay hungry, stay foolish.", zh: "求知若渴，虚心若愚。", by: "Steve Jobs" },
+    { en: "The future belongs to those who believe in the beauty of their dreams.", zh: "未来属于那些相信梦想之美的人。", by: "Eleanor Roosevelt" },
+    { en: "It does not matter how slowly you go as long as you do not stop.", zh: "前进的速度不重要，只要不停下脚步。", by: "Confucius" },
+    { en: "Success is not final, failure is not fatal: it is the courage to continue that counts.", zh: "成功不是终点，失败也并非终结，真正重要的是继续前进的勇气。", by: "Winston Churchill" },
+    { en: "What we think, we become.", zh: "心之所想，即身之所成。", by: "Buddha" },
+    { en: "Happiness is not something ready made. It comes from your own actions.", zh: "幸福不是现成的东西，它来自你自己的行动。", by: "Dalai Lama" },
+    { en: "In the middle of difficulty lies opportunity.", zh: "困难中孕育着机会。", by: "Albert Einstein" },
+    { en: "Imagination is more important than knowledge.", zh: "想象力比知识更重要。", by: "Albert Einstein" },
+    { en: "The best way out is always through.", zh: "最好的出路永远是勇往直前。", by: "Robert Frost" },
+    { en: "Do not go where the path may lead, go instead where there is no path and leave a trail.", zh: "不要走别人走过的路，走自己的路，留下自己的足迹。", by: "Ralph Waldo Emerson" },
+    { en: "Well done is better than well said.", zh: "说得好不如做得好。", by: "Benjamin Franklin" }
+  ];
+  var QUOTE_OFFSET_KEY = "vocab_quote_offset";
+  function dayOfYear() {
+    var now = new Date(), start = new Date(now.getFullYear(), 0, 0);
+    return Math.floor((now - start) / 86400000);
+  }
+  function dailyQuoteIndex() {
+    // 默认按「年内第几天」选句；手动「换一句」会持久化偏移量，跨刷新保留
+    var off = parseInt(localStorage.getItem(QUOTE_OFFSET_KEY) || "0", 10);
+    if (!isFinite(off)) off = 0;
+    return (dayOfYear() + off + DAILY_QUOTES.length * 999) % DAILY_QUOTES.length;
+  }
+  function renderDailyQuote() {
+    var box = document.getElementById("daily-quote"); if (!box) return;
+    var q = DAILY_QUOTES[dailyQuoteIndex()] || DAILY_QUOTES[0];
+    document.getElementById("dq-en").textContent = q.en;
+    document.getElementById("dq-zh").textContent = q.zh;
+    document.getElementById("dq-by").textContent = "—— " + q.by;
+  }
+  var dqRefresh = document.getElementById("dq-refresh");
+  if (dqRefresh) dqRefresh.addEventListener("click", function () {
+    var off = parseInt(localStorage.getItem(QUOTE_OFFSET_KEY) || "0", 10);
+    if (!isFinite(off)) off = 0;
+    off = off + 1;
+    localStorage.setItem(QUOTE_OFFSET_KEY, String(off));
+    renderDailyQuote();
+    // 微动效：英文一句轻轻淡入
+    var en = document.getElementById("dq-en");
+    if (en) { en.style.transition = "opacity .15s"; en.style.opacity = "0"; setTimeout(function () { en.style.opacity = "1"; }, 60); }
+  });
 
   /* ---------- 初始化 ---------- */
   fillBookSelect(homeSel); fillBookSelect(learnSel);

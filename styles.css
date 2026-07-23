@@ -147,18 +147,64 @@ body {
   background: conic-gradient(var(--primary) calc(var(--pct) * 1%), var(--surface-2) 0);
   display: grid; place-items: center;
 }
+/* 内圈文字：flex 列向居中 + 极小间距，百分比与「掌握度」紧贴圆心而非散到上下两端 */
 .ring-inner {
   width: 80px; height: 80px; border-radius: 50%; background: var(--surface);
-  display: grid; place-items: center; text-align: center; line-height: 1.1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; line-height: 1.05; gap: 3px;
 }
 .ring-inner span { font-size: 22px; font-weight: 700; }
-.ring-inner small { color: var(--ink-faint); font-size: 12px; }
+.ring-inner small { color: var(--ink-faint); font-size: 11px; letter-spacing: .5px; }
 .mini-stats { list-style: none; margin: 0; padding: 0; flex: 1; display: flex; flex-direction: column; gap: 8px; }
 .mini-stats li { display: flex; align-items: baseline; gap: 8px; }
 .mini-stats li span { font-size: 20px; font-weight: 700; color: var(--primary); }
 .mini-stats li small { color: var(--ink-soft); font-size: 13px; }
 
 .quick-actions { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+
+/* 学习区网格：移动端堆叠（学习新词 + 每日一句），PC 端（≥720px）并排，右侧填满空白 */
+.learn-zone { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 12px; }
+@media (min-width: 720px) {
+  .learn-zone { grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); align-items: stretch; }
+}
+
+/* 「每日一句」卡片：有道词典风 —— 浅紫渐变底 + 大斜体英文 + 中文翻译 + 作者 */
+.daily-quote {
+  position: relative; overflow: hidden;
+  background: linear-gradient(135deg, var(--primary-soft) 0%, #f3edff 100%);
+  border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 16px 18px 14px;
+  box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 4px; justify-content: center;
+  min-height: 0;
+}
+.daily-quote::before {
+  content: """; position: absolute; top: -18px; left: 10px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 80px; line-height: 1; color: var(--primary);
+  opacity: .14; pointer-events: none; user-select: none;
+}
+.dq-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.dq-title { font-size: 13px; font-weight: 700; color: var(--ink); letter-spacing: .5px; }
+.dq-refresh {
+  border: 1px solid var(--line); background: var(--surface);
+  border-radius: 999px; padding: 4px 11px; font-size: 12px; font-weight: 600;
+  color: var(--ink-soft); cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.dq-refresh:hover { color: var(--primary); border-color: var(--primary); background: var(--primary-soft); }
+.dq-refresh:active { transform: scale(.96); }
+.dq-en {
+  margin: 0; font-family: Georgia, "Times New Roman", serif;
+  font-size: 17px; font-style: italic; line-height: 1.55; color: var(--ink);
+  position: relative; z-index: 1;
+}
+.dq-zh { margin: 6px 0 0; font-size: 13px; color: var(--ink-soft); line-height: 1.6; position: relative; z-index: 1; }
+.dq-by { margin: 8px 0 0; font-size: 11px; color: var(--ink-faint); text-align: right; font-style: italic; letter-spacing: .3px; }
+@media (min-width: 720px) {
+  /* PC 端：让每日一句与「学习新词」齐高，左边 learn-row 不变 */
+  .learn-zone > .learn-row { margin-bottom: 0; }
+}
 
 /* 开始复习 + 遗忘曲线 并排：两列等高、整体高度贴近「学习新词」行，封顶 116px 防止 PC 端被 canvas 撑成长条 */
 .review-zone { display: grid; grid-template-columns: minmax(140px, 1fr) 1.5fr; gap: 12px; align-items: stretch; margin-bottom: 12px; height: 116px; }
@@ -357,7 +403,7 @@ body {
 }
 @media (max-width: 380px) {
   .flip-front .word { font-size: 40px; }
-  .quick-actions { grid-template-columns: 1fr; }
+  .learn-zone { grid-template-columns: 1fr; }
   .review-zone { grid-template-columns: 1fr; height: auto; }
   .review-zone .qbtn-review { height: auto; padding: 12px 14px; }
   .forget-curve { height: auto; }
