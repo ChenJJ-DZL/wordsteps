@@ -9,38 +9,95 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260723b";           // 版本号：强制刷新缓存（英文释义/发音改为构建期抓取的本地包 books/en_defs.js，网页加载即离线可用、随版本增量更新；ONLINE_ENRICH 仅兜底）
+  var APP_VER = "20260723c";           // 版本号：强制刷新缓存（英文释义/发音改为构建期抓取的本地包 books/en_defs.js，网页加载即离线可用、随版本增量更新；ONLINE_ENRICH 仅兜底）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 艾宾浩斯间隔：索引0=10分钟(不认识重置)，首次学习进索引1(1天)，随后逐级拉长
   var EB = [10 * 60 * 1000, 1 * DAY, 2 * DAY, 4 * DAY, 7 * DAY, 15 * DAY, 30 * DAY, 60 * DAY, 120 * DAY];
 
-  /* ---------- 状态 ---------- */
-  var state = loadState();
-  function loadState() {
-    // 默认骨架：新增字段(如 bookSort)必须有默认值，老用户 localStorage 的 state 才不会被覆盖成 undefined
-    var def = {
+  /* ---------- 状态 / 版本化迁移 ---------- */
+  var SCHEMA_VER = 1;   // schema 版本：管「数据兼容性」，与 APP_VER(缓存强刷) 解耦
+  function defaultSkeleton() {
+    return {
+      schemaVer: SCHEMA_VER,
       settings: { accent: "us", book: (REGISTRY[0] && REGISTRY[0].id) || "ogden", incremental: false, bookSort: {} },
       streak: { lastDate: "", count: 0 }, sessions: [], cache: {}, books: {}
     };
-    try {
-      var r = localStorage.getItem(STORE_KEY);
-      if (r) {
-        var s = JSON.parse(r);
-        // 深合并：settings 逐层合并，确保老存档缺失的新字段(如 bookSort)沿用默认
-        def.settings = Object.assign({}, def.settings, s.settings || {});
-        if (!def.settings.bookSort) def.settings.bookSort = {};
-        if (s.streak) def.streak = s.streak;
-        if (Array.isArray(s.sessions)) def.sessions = s.sessions;
-        if (s.cache) def.cache = s.cache;
-        if (s.books) def.books = s.books;
-        return def;
-      }
-    } catch (e) {}
+  }
+  // 前向兼容：把已存 raw 与默认骨架深合并，新增字段永远有默认值，且不覆盖已有内容
+  function deepMergeSkeleton(def, raw) {
+    def.settings = Object.assign({}, def.settings, raw.settings || {});
+    if (!def.settings.bookSort) def.settings.bookSort = {};
+    if (raw.streak) def.streak = raw.streak;
+    if (Array.isArray(raw.sessions)) def.sessions = raw.sessions;
+    if (raw.cache) def.cache = raw.cache;
+    if (raw.books) def.books = raw.books;
+    def.schemaVer = SCHEMA_VER;
     return def;
   }
-  function saveState() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
+  // ---------- 迁移函数（表驱动：源版本号 -> 升级函数(oldState)=>newState） ----------
+  // 0->1：现存无 schemaVer 的老存档 → 规范化结构；只补形状，不删任何 records（零丢失）
+  function migrate_0_to_1(raw) {
+    raw.books = raw.books || {};
+    for (var id in raw.books) {
+      if (!raw.books[id]) raw.books[id] = {};
+      if (!raw.books[id].records) raw.books[id].records = {};
+    }
+    raw.sessions = raw.sessions || [];
+    raw.settings = raw.settings || {};
+    raw.streak = raw.streak || { lastDate: "", count: 0 };
+    raw.cache = raw.cache || {};
+    return raw;
+  }
+  // 预留：未来重命名词本时整体搬移 records（零丢失）
+  function migrate_renameBook(raw, oldId, newId) {
+    if (raw.books && raw.books[oldId]) { raw.books[newId] = raw.books[oldId]; delete raw.books[oldId]; }
+    return raw;
+  }
+  // 预留：未来词 w 拼写变化时单条搬移
+  function migrate_renameWord(raw, id, oldW, newW) {
+    var b = raw.books && raw.books[id];
+    if (b && b.records && b.records[oldW]) { b.records[newW] = b.records[oldW]; delete b.records[oldW]; }
+    return raw;
+  }
+  var MIGRATIONS = { 0: migrate_0_to_1 };
+  function loadState() {
+    var def = defaultSkeleton();
+    try {
+      var r = localStorage.getItem(STORE_KEY);
+      if (!r) return def;
+      var raw = JSON.parse(r);
+      var curVer = raw.schemaVer || 0;
+      // 升级前先备份一份，防迁移失败可回滚（仅保留最近 3 份，避免无限增长）
+      if (curVer < SCHEMA_VER) { try { localStorage.setItem(STORE_KEY + "_bak_" + Date.now(), r); pruneBackups(); } catch (e) {} }
+      while (curVer < SCHEMA_VER) {
+        var fn = MIGRATIONS[curVer];
+        if (!fn) break;                       // 没有对应迁移函数则停止，避免死循环
+        raw = fn(raw) || raw;
+        curVer++;
+      }
+      return deepMergeSkeleton(def, raw);
+    } catch (e) {
+      console.warn("loadState 迁移失败，使用默认骨架：", e);
+      return def;
+    }
+  }
+  function pruneBackups() {
+    try {
+      var keys = [], prefix = STORE_KEY + "_bak_";
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf(prefix) === 0) keys.push(k);
+      }
+      keys.sort();
+      while (keys.length > 3) localStorage.removeItem(keys.shift());
+    } catch (e) {}
+  }
+  function saveState() { state.schemaVer = SCHEMA_VER; try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
   function bookRecs(id) { if (!state.books[id]) state.books[id] = { records: {} }; return state.books[id].records; }
+
+  // 必须在 MIGRATIONS 赋值完成后调用
+  var state = loadState();
 
   /* ---------- 词库懒加载 ---------- */
   function loadBook(id, cb) {
