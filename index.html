@@ -9,7 +9,7 @@
   <link rel="icon" href="favicon.ico?v=8" sizes="any" />
   <link rel="icon" href="icon.svg?v=8" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon-512.png" />
-  <link rel="stylesheet" href="styles.css?v=20260723d" />
+  <link rel="stylesheet" href="styles.css?v=20260723e" />
 </head>
 <body>
   <header class="topbar">
@@ -90,12 +90,18 @@
       </div>
     </section>
 
-    <section class="learn-zone">
+    <section class="quick-actions">
       <div class="learn-row">
         <button class="qbtn qbtn-learn" id="home-learn">
-          <span class="qbtn-ico">📚</span>
-          <span class="qbtn-title">学习新词</span>
-          <span class="qbtn-sub" id="home-learn-sub">0 个新词待学</span>
+          <span class="learn-side">
+            <span class="qbtn-ico">📚</span>
+            <span class="qbtn-title">学习新词</span>
+            <span class="qbtn-sub" id="home-learn-sub">0 个新词待学</span>
+          </span>
+          <span class="learn-quote">
+            <span class="lq-en" id="home-daily-en"></span>
+            <span class="lq-zh" id="home-daily-zh"></span>
+          </span>
         </button>
         <div class="inc-block" id="home-inc-block">
           <button class="inc-toggle" id="home-inc" aria-pressed="false" title="开启后，除基础/初中外，每个词本只显示与上一难度差集的新词">
@@ -104,15 +110,6 @@
           </button>
           <button class="inc-help" id="inc-help" aria-label="增量说明" title="增量说明">?</button>
         </div>
-      </div>
-      <div class="daily-quote" id="daily-quote">
-        <div class="dq-head">
-          <span class="dq-title">📖 每日一句</span>
-          <button class="dq-refresh" id="dq-refresh" title="换一句">换一句 ↻</button>
-        </div>
-        <p class="dq-en" id="dq-en"></p>
-        <p class="dq-zh" id="dq-zh"></p>
-        <p class="dq-by" id="dq-by"></p>
       </div>
     </section>
 
@@ -235,9 +232,9 @@
 
   <audio id="player" hidden></audio>
 
-  <script src="books/manifest.js?v=20260723d"></script>
-  <script src="books/en_defs.js?v=20260723d"></script>
-  <script src="app.js?v=20260723d"></script>
+  <script src="books/manifest.js?v=20260723e"></script>
+  <script src="books/en_defs.js?v=20260723e"></script>
+  <script src="app.js?v=20260723e"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {

@@ -162,48 +162,30 @@ body {
 
 .quick-actions { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
 
-/* 学习区网格：移动端堆叠（学习新词 + 每日一句），PC 端（≥720px）并排，右侧填满空白 */
-.learn-zone { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 12px; }
-@media (min-width: 720px) {
-  .learn-zone { grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); align-items: stretch; }
+/* 学习新词按钮 = 学习区（图标 + 标题 + 小字）+ 每日一句（英文 + 中文）左右两栏 */
+.qbtn-learn { flex: 1; flex-direction: row; align-items: center; gap: 16px; flex-wrap: wrap; }
+.learn-side { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; flex: 0 0 auto; min-width: 0; }
+.learn-quote {
+  flex: 1 1 220px; min-width: 0;
+  display: flex; flex-direction: column; gap: 4px;
+  padding-left: 16px; border-left: 1px solid var(--line);
 }
-
-/* 「每日一句」卡片：有道词典风 —— 浅紫渐变底 + 大斜体英文 + 中文翻译 + 作者 */
-.daily-quote {
-  position: relative; overflow: hidden;
-  background: linear-gradient(135deg, var(--primary-soft) 0%, #f3edff 100%);
-  border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 16px 18px 14px;
-  box-shadow: var(--shadow);
-  display: flex; flex-direction: column; gap: 4px; justify-content: center;
-  min-height: 0;
+.lq-en {
+  font-family: Georgia, "Times New Roman", "Source Han Serif SC", serif;
+  font-size: 16px; font-style: italic; line-height: 1.45; color: var(--ink);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  text-overflow: ellipsis; word-break: break-word;
 }
-.daily-quote::before {
-  content: """; position: absolute; top: -18px; left: 10px;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 80px; line-height: 1; color: var(--primary);
-  opacity: .14; pointer-events: none; user-select: none;
+.lq-zh {
+  font-size: 12.5px; color: var(--ink-soft); line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  text-overflow: ellipsis; word-break: break-word;
 }
-.dq-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-.dq-title { font-size: 13px; font-weight: 700; color: var(--ink); letter-spacing: .5px; }
-.dq-refresh {
-  border: 1px solid var(--line); background: var(--surface);
-  border-radius: 999px; padding: 4px 11px; font-size: 12px; font-weight: 600;
-  color: var(--ink-soft); cursor: pointer;
-  transition: background .15s, color .15s, border-color .15s;
-}
-.dq-refresh:hover { color: var(--primary); border-color: var(--primary); background: var(--primary-soft); }
-.dq-refresh:active { transform: scale(.96); }
-.dq-en {
-  margin: 0; font-family: Georgia, "Times New Roman", serif;
-  font-size: 17px; font-style: italic; line-height: 1.55; color: var(--ink);
-  position: relative; z-index: 1;
-}
-.dq-zh { margin: 6px 0 0; font-size: 13px; color: var(--ink-soft); line-height: 1.6; position: relative; z-index: 1; }
-.dq-by { margin: 8px 0 0; font-size: 11px; color: var(--ink-faint); text-align: right; font-style: italic; letter-spacing: .3px; }
-@media (min-width: 720px) {
-  /* PC 端：让每日一句与「学习新词」齐高，左边 learn-row 不变 */
-  .learn-zone > .learn-row { margin-bottom: 0; }
+@media (max-width: 480px) {
+  /* 极窄屏：每日一句放到下一行，避免挤压图标 */
+  .qbtn-learn { gap: 12px; }
+  .learn-quote { padding-left: 0; border-left: none; flex-basis: 100%; border-top: 1px dashed var(--line); padding-top: 10px; }
+  .lq-en { font-size: 15px; }
 }
 
 /* 开始复习 + 遗忘曲线 并排：两列等高、整体高度贴近「学习新词」行，封顶 116px 防止 PC 端被 canvas 撑成长条 */
