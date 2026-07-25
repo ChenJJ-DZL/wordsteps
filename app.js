@@ -12,15 +12,16 @@
   var APP_VER = "20260723f";           // 版本号：强制刷新缓存（每日一句 widget 上线；学习新词 + 每日一句 PC 端并排填空白）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
-  // 艾宾浩斯间隔：索引0=10分钟(不认识重置)，首次学习进索引1(1天)，随后逐级拉长
-  var EB = [10 * 60 * 1000, 1 * DAY, 2 * DAY, 4 * DAY, 7 * DAY, 15 * DAY, 30 * DAY, 60 * DAY, 120 * DAY];
+  // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
+  var T_10MIN = 10 * 60 * 1000, T_1D = 1 * DAY;
+  var EB = [T_10MIN, T_1D, 2 * DAY, 4 * DAY, 7 * DAY, 15 * DAY, 30 * DAY, 60 * DAY, 120 * DAY];
 
   /* ---------- 状态 / 版本化迁移 ---------- */
-  var SCHEMA_VER = 1;   // schema 版本：管「数据兼容性」，与 APP_VER(缓存强刷) 解耦
+  var SCHEMA_VER = 2;   // schema 版本：管「数据兼容性」，与 APP_VER(缓存强刷) 解耦；v2=自适应间隔(interval 字段替代 intervalIdx)
   function defaultSkeleton() {
     return {
       schemaVer: SCHEMA_VER,
-      settings: { accent: "us", book: (REGISTRY[0] && REGISTRY[0].id) || "ogden", incremental: false, bookSort: {} },
+      settings: { accent: "us", book: (REGISTRY[0] && REGISTRY[0].id) || "ogden", incremental: false, bookSort: {}, dailyNewLimit: 0 },
       streak: { lastDate: "", count: 0 }, sessions: [], cache: {}, books: {}
     };
   }
@@ -216,21 +217,37 @@
   function dayStr(ts) { var d = new Date(ts); return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); }
 
   /* ---------- 进度记录（按词库） ---------- */
+  // 将旧格式（intervalIdx）懒迁移为新格式（interval 毫秒）
+  function migrateRecord(r) {
+    if (r.interval != null) return;  // 已是新格式，无需迁移
+    r.interval = r.intervalIdx != null ? (EB[r.intervalIdx] || T_1D) : T_1D;
+    delete r.intervalIdx;
+  }
   function ensureRecord(id, word) {
     var rs = bookRecs(id), r = rs[word];
     if (!r) {
       var now = Date.now();
-      r = rs[word] = { word: word, firstLearned: now, lastReviewed: now, nextReview: now + EB[1], intervalIdx: 1, reps: 1, lapses: 0, lastRating: "new", status: "learning" };
+      r = rs[word] = { word: word, firstLearned: now, lastReviewed: now, nextReview: now + T_1D, interval: T_1D, reps: 1, lapses: 0, lastRating: "new", status: "learning" };
       saveState();
+    } else {
+      migrateRecord(r);  // 懒迁移旧格式记录
     }
     return r;
   }
   function scheduleReview(id, word, rating) {
     var r = ensureRecord(id, word), now = Date.now();
-    if (rating === "know") { r.intervalIdx = Math.min(r.intervalIdx + 1, EB.length - 1); r.status = r.intervalIdx >= EB.length - 1 ? "mastered" : "review"; }
-    else if (rating === "fuzzy") { r.intervalIdx = Math.max(1, r.intervalIdx - 1); r.status = "review"; }
-    else { r.intervalIdx = 0; r.lapses = (r.lapses || 0) + 1; r.status = "learning"; }
-    r.nextReview = now + EB[r.intervalIdx]; r.lastReviewed = now; r.reps = (r.reps || 0) + 1; r.lastRating = rating;
+    var iv = r.interval || T_1D;
+    if (rating === "know") {
+      iv = Math.min(Math.round(iv * 2), 120 * DAY);  // 自适应加倍，上限120天
+      r.status = iv >= 60 * DAY ? "mastered" : "review";
+    } else if (rating === "fuzzy") {
+      iv = Math.max(Math.round(iv * 0.5), DAY);       // 减半，最低1天
+      r.status = "review";
+    } else {
+      iv = T_10MIN; r.lapses = (r.lapses || 0) + 1;   // 完全遗忘，重置
+      r.status = "learning";
+    }
+    r.interval = iv; r.nextReview = now + iv; r.lastReviewed = now; r.reps = (r.reps || 0) + 1; r.lastRating = rating;
     saveState();
   }
 
@@ -248,11 +265,32 @@
     return { total: total, mastered: mastered, newToday: newToday, due: due, lapses: lapses, pct: total ? Math.round(mastered / total * 100) : 0 };
   }
   function dueWords(id) {
-    var eod = endOfDay(Date.now()), out = [], words = curWords();
-    for (var i = 0; i < words.length; i++) { var r = bookRecs(id)[words[i].w]; if (r && r.nextReview <= eod) out.push(words[i]); }
+    var now = Date.now(), eod = endOfDay(now), out = [], words = curWords(), rs = bookRecs(id);
+    for (var i = 0; i < words.length; i++) { var r = rs[words[i].w]; if (r && r.nextReview <= eod) { migrateRecord(r); out.push(words[i]); } }
+    // 按 overdue 程度 + lapses 加权排序：越 overdue、越易忘的词越优先
+    out.sort(function (a, b) {
+      var ra = rs[a.w], rb = rs[b.w];
+      var ia = Math.max(ra.interval || T_1D, T_1D), ib = Math.max(rb.interval || T_1D, T_1D);
+      var oa = (now - ra.nextReview) / ia, ob = (now - rb.nextReview) / ib;
+      oa *= 1 + (ra.lapses || 0) * 0.2; ob *= 1 + (rb.lapses || 0) * 0.2;
+      return ob - oa;
+    });
     return out;
   }
-  function newWords(id) { var words = curWords(); return words.filter(function (v) { return !bookRecs(id)[v.w]; }); }
+  function newWords(id, limit) {
+    var words = curWords(), rs = bookRecs(id);
+    words = words.filter(function (v) { return !rs[v.w]; });
+    // 每日新词上限：limit>0 时截断（首页预览不传 limit，学习视图传入 dailyNewLimit）
+    if (limit > 0 && words.length > limit) {
+      // 计算今天已学新词数
+      var sod = startOfDay(Date.now()), todayNew = 0;
+      for (var w in rs) { var r = rs[w]; if (r && startOfDay(r.firstLearned) === sod) todayNew++; }
+      var remaining = limit - todayNew;
+      if (remaining <= 0) return [];
+      words = words.slice(0, remaining);
+    }
+    return words;
+  }
 
   /* ---------- 富化（dictionaryapi.dev，可缓存离线） ---------- */
   // 免费接口有速率限制，因此采用「温和预取 + 按需富化」：
@@ -476,7 +514,9 @@
       document.getElementById("ms-time").textContent = mins + "m";
       document.getElementById("ms-lapses").textContent = s.lapses;
       document.getElementById("home-review-sub").textContent = s.due + " 个单词待复习";
-      document.getElementById("home-learn-sub").textContent = newWords(id).length + " 个新词待学";
+      var limit = state.settings.dailyNewLimit || 0, totalNew = newWords(id, 0).length;
+      document.getElementById("home-learn-sub").textContent = totalNew + " 个新词待学" + (limit > 0 ? "（今日上限 " + limit + "）" : "");
+      document.getElementById("home-limit").value = limit;
       var prev = document.getElementById("due-preview"); prev.innerHTML = "";
       dueWords(id).slice(0, 24).forEach(function (v) {
         var li = document.createElement("li"); li.className = "chip-word"; li.textContent = v.w; li.title = v.zh || ""; prev.appendChild(li);
@@ -564,14 +604,23 @@
   var learnQueue = [], learnIdx = 0;
   function startLearn() {
     var id = curBook();
-    loadBook(id, function () { learnQueue = newWords(id); learnIdx = 0; startSession(); renderLearn(); });
+    var limit = state.settings.dailyNewLimit || 0;
+    loadBook(id, function () { learnQueue = newWords(id, limit); learnIdx = 0; startSession(); renderLearn(); });
   }
   function renderLearn() {
     var id = curBook();
     var stage = document.getElementById("learn-stage"); stage.innerHTML = "";
     document.getElementById("learn-counter").textContent = (learnQueue.length ? learnIdx + 1 : 0) + " / " + learnQueue.length;
     updateCacheBadge(id);
-    if (!learnQueue.length) { stage.innerHTML = '<div class="panel" style="text-align:center">🎉 这个单词本的核心词都学完啦！</div>'; return; }
+    if (!learnQueue.length) {
+      var limit = state.settings.dailyNewLimit || 0;
+      if (limit > 0 && newWords(id, 0).length > 0) {
+        stage.innerHTML = '<div class="panel" style="text-align:center">🎯 今日新词目标（' + limit + '词）已完成！<br><small style="color:var(--ink-faint)">明天再来学新的，或去复习旧词吧。</small></div>';
+      } else {
+        stage.innerHTML = '<div class="panel" style="text-align:center">🎉 这个单词本的核心词都学完啦！</div>';
+      }
+      return;
+    }
     var bw = learnQueue[learnIdx];
     var node = buildCard(bw); stage.appendChild(node); prepareCard(bw, node);
   }
@@ -646,7 +695,7 @@
       if (q && r.word.toLowerCase().indexOf(q) === -1 && !(meta && meta.zh && meta.zh.toLowerCase().indexOf(q) !== -1)) return;
       shown++;
       var li = document.createElement("li");
-      var pct = Math.round(r.intervalIdx / (EB.length - 1) * 100);
+      var pct = Math.min(100, Math.round((r.interval || T_1D) / (120 * DAY) * 100));
       var lvlCls = r.status === "mastered" ? "lvl-mastered" : (r.status === "review" ? "lvl-review" : "lvl-learning");
       var lvlTxt = r.status === "mastered" ? "已掌握" : (r.status === "review" ? "复习中" : "学习中");
       li.innerHTML = '<span class="lw">' + r.word + '</span><span class="lzh">' + (meta ? meta.zh : "") + '</span><span class="lbar"><i style="width:' + pct + '%"></i></span><span class="lvl-tag ' + lvlCls + '">' + lvlTxt + '</span>';
@@ -776,6 +825,15 @@
   window.addEventListener("beforeunload", endSession);
   refreshAccent();
   refreshInc();
+  // 每日新词上限输入框
+  var limitInput = document.getElementById("home-limit");
+  if (limitInput) {
+    limitInput.value = state.settings.dailyNewLimit || 0;
+    limitInput.addEventListener("change", function () {
+      var v = parseInt(limitInput.value, 10);
+      state.settings.dailyNewLimit = isNaN(v) || v < 0 ? 0 : v; saveState();
+    });
+  }
   // 启动即预载全部词本，读出各本真实词数（动态「名称(N词)」），加载完成后自动刷新下拉框/历史标题
   REGISTRY.forEach(function (r) { loadBook(r.id, function () {}); });
   showView("home");
