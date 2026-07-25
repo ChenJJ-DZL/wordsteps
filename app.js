@@ -9,7 +9,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260725a";           // 版本号：强制刷新缓存（SRS自适应间隔 + 复习优先级排序 + 每日新词上限）
+  var APP_VER = "20260725b";           // 版本号：强制刷新缓存（freq/词族100%覆盖 + 词根→词族文案更新）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
@@ -405,7 +405,7 @@
     node.querySelector(".ipa").textContent = ipa;
     var rootBadge = node.querySelector(".root-badge");
     if (rootBadge) {
-      if (bw.root) { rootBadge.style.display = "inline-block"; rootBadge.textContent = "根：-" + bw.root + "-"; }
+      if (bw.root) { rootBadge.style.display = "inline-block"; rootBadge.textContent = "族：-" + bw.root + "-"; }
       else { rootBadge.style.display = "none"; }
     }
     node.querySelector(".word-sm").textContent = bw.w;

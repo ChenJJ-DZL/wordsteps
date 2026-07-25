@@ -9,14 +9,14 @@
   <link rel="icon" href="favicon.ico?v=8" sizes="any" />
   <link rel="icon" href="icon.svg?v=8" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon-512.png" />
-  <link rel="stylesheet" href="styles.css?v=20260725a" />
+  <link rel="stylesheet" href="styles.css?v=20260725b" />
 </head>
 <body>
   <header class="topbar">
     <div class="brand">
       <div class="brand-text">
         <strong>WordSteps 阶梯背单词</strong>
-        <small>多词库·艾宾浩斯遗忘曲线复习</small>
+        <small>多词库·词族聚类·自适应复习</small>
       </div>
     </div>
     <button id="btn-accent" class="accent-pill" aria-pressed="false" title="切换英美发音">
@@ -37,7 +37,7 @@
       <div class="sort-seg" id="home-sort">
         <button data-mode="alpha">字母</button>
         <button data-mode="freq">词频</button>
-        <button data-mode="root" class="on">词根</button>
+        <button data-mode="root" class="on">词族</button>
       </div>
     </section>
 
@@ -232,9 +232,9 @@
 
   <audio id="player" hidden></audio>
 
-  <script src="books/manifest.js?v=20260725a"></script>
-  <script src="books/en_defs.js?v=20260725a"></script>
-  <script src="app.js?v=20260725a"></script>
+  <script src="books/manifest.js?v=20260725b"></script>
+  <script src="books/en_defs.js?v=20260725b"></script>
+  <script src="app.js?v=20260725b"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {

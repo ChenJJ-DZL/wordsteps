@@ -48,10 +48,10 @@ def norm_case(w):
     w = re.sub(r"[^A-Za-z0-9'\-]", "", w)    # 去空格等非字母数字，保留大小写
     return w
 
-# ---------------- 词根聚类（词根词缀法：构建期给每个词打 root 标签） ----------------
-# ROOT_LIST：常见拉丁/希腊词根串；匹配时取「最长命中」，先尝试剥前缀再匹配以降低误判。
-# 仅用于单本内「词根序」的聚类 + 跨天交错（避免同根词密集成块导致前摄干扰），不参与其他逻辑。
+# ---------------- 词族聚类（词根词缀法 + 词形归约） ----------------
+# 词根列表：拉丁/希腊词根 + 日耳曼词基，按长度降序确保最长匹配
 ROOT_LIST = [
+    # --- 拉丁/希腊词根 (原列表) ---
     "act","aud","bell","bene","bon","bio","cap","cept","cip","capt","ced","ceed","cess","chron",
     "cid","cis","civ","clar","cogn","cord","corp","cosm","cred","cruc","cub","cumb","cur","curs",
     "dem","demo","derm","dict","doc","doct","domin","duc","duct","dyn","equ","err","fac","fact",
@@ -71,33 +71,89 @@ ROOT_LIST = [
     "sens","sent","sequ","secu","sert","sig","sign","simil","simul","sol","son","soph","spec",
     "spic","sper","spir","stell","struct","suad","sum","super","syn","sym","tang","tact","techn",
     "tele","tem","ten","tend","term","terr","test","tex","the","theo","therm","tim","tom","ton",
-    "tort","tract","trib","trop","tru","turb","typ","uni","urb","us","ut","vac","van","val","vari",
+    "tort","tract","trib","trop","tru","turb","typ","uni","urb","vac","van","val","vari",
     "ven","vent","ver","verb","vers","vert","viv","vic","vict","vid","vis","voc","vok","vol","volv",
     "vor","vuln","zo",
+    # --- 日耳曼词基 (高频基础词核心) ---
+    "beauty","busy","happy","quick","slow","every","another","break","bring","build","burn",
+    "call","care","carry","catch","cause","change","check","clean","clear","climb","close",
+    "come","cook","cool","count","cover","cross","cut","dance","deal","deep","draw","dream",
+    "drink","drive","drop","eat","fall","feed","feel","fight","fill","find","fire","fish",
+    "flow","freeze","follow","free","get","give","grow","hand","hang","have","head","hear",
+    "heart","help","hide","hit","hold","hope","keep","kick","kill","know","land","last",
+    "laugh","lead","learn","leave","let","lie","lift","light","live","look","lose",
+    "love","make","mark","mean","meet","mind","miss","move","name","need","open","pass",
+    "pay","pick","place","play","point","pull","push","put","rain","raise","reach","read",
+    "ride","ring","rise","roll","run","say","see","seek","sell","send","set","shake",
+    "shine","shoot","show","shut","sing","sink","sit","sleep","smell","smile","speak",
+    "spend","stand","start","stay","steal","step","stick","stop","strike","swim","swing",
+    "take","talk","teach","tear","tell","think","throw","touch","train","travel","turn",
+    "wait","walk","want","wash","watch","wear","win","wind","wish","work","write",
 ]
-# 常见前缀：匹配前先剥掉，避免前缀干扰词根识别（如 respect -> 剥 re -> spect）
+ROOT_LIST.sort(key=len, reverse=True)
+
+# 前缀列表：匹配时先剥除
 PREFIXES = ["counter","retro","ultra","circum","hetero","hypo","macro","micro","mono","multi",
     "photo","proto","super","trans","tri","anti","auto","bi","co","de","dis","en","ex","fore","in",
     "inter","mid","mis","non","out","over","peri","post","pre","pro","re","semi","sub","tele","un",
     "under","up","with","ab","ad","com","con","contra","equi","extra","hyper","intro","para","syn",
     "sym","di","hemi","holo","iso","meta","neo","pan","poly","pseudo","supra","vice","ante","apo",
-    "cata","dys","ecto","endo","eu","ortho","geo","bio"]
+    "cata","dys","ecto","endo","eu","ortho","geo","bio",
+    # 日耳曼前缀
+    "be","for","fore","mis","a",
+]
 PREFIXES.sort(key=len, reverse=True)
 
-def root_of(w):
-    """返回词根串（最长命中），无则 ''。仅用于单本内「词根序」聚类+交错。"""
-    w = norm(w)
-    if not w: return ""
+# 常见后缀：归约时剥除
+SUFFIXES = ["tion","sion","ness","ment","able","ible","ful","less","ous","ive","al","ial","ic",
+    "ish","ly","er","est","ing","ed","s","es","en","ize","ise","ify","ate","ity","ty","ance",
+    "ence","ant","ent","ure","age","dom","hood","ship","ward","wards","wise","fold","most",
+    "like","proof","some","th","ery","ory","ary","ism","ist","ite","oid","ose","scope"]
+SUFFIXES.sort(key=len, reverse=True)
+
+def word_family(w):
+    """返回词族标识（最长命中词根/词基），确保≥3字符且在原文中连续出现。无则用自身作为词族。"""
+    w_raw = (w or "").strip()
+    w = norm(w_raw)
+    if not w or len(w) < 2:
+        return w
+    # 三段匹配
     cands = [w]
+    # 1) 剥前缀
     for p in PREFIXES:
         if w.startswith(p) and len(w) > len(p) + 1:
             cands.append(w[len(p):])
+    # 2) 剥后缀
+    for s in SUFFIXES:
+        for c in list(cands):
+            if c.endswith(s) and len(c) > len(s) + 1:
+                cands.append(c[:-len(s)])
+    # 3) y←i 还原（happi→happy, everi→every, beauti→beauty 等）
+    for i in range(len(cands)):
+        c = cands[i]
+        if c.endswith("i") and len(c) > 3:
+            cands.append(c[:-1] + "y")
+    # 4) 词根表最长匹配
     best = ""
     for c in cands:
         for r in ROOT_LIST:
             if r in c and len(r) > len(best):
                 best = r
-    return best
+    if best and len(best) >= 3:
+        return best
+    # 兜底：≤4字母短词以自身为族，长词剥后缀后再尝试
+    if len(w) <= 4:
+        return w
+    # 剥常见后缀后再试一次
+    for s in ['ing','ed','s','es','ly','er','est','tion','ness','ment','ful','less','ive','al','ial','ic','ish']:
+        if w.endswith(s) and len(w) > len(s) + 2:
+            stripped = w[:-len(s)]
+            for r in ROOT_LIST:
+                if r in stripped and len(r) >= 3:
+                    return r
+            if len(stripped) >= 3:
+                return stripped
+    return w
 
 # ---------------- 各源加载器 ----------------
 def load_pluto3500():
@@ -382,9 +438,18 @@ def main():
     log("  可复用例句词条: %d" % len(ex_map))
 
     log("== 5) 写出各本 ==")
+    from wordfreq import zipf_frequency as _zpf
+    def calc_freq(word):
+        z = _zpf(word, "en")
+        if z > 5.5: return 5
+        if z > 4.5: return 4
+        if z > 3.5: return 3
+        if z > 2.5: return 2
+        return 1
+
     for bid, u in unions.items():
         words = []
-        n_ipa = n_zh = n_ex = 0
+        n_ipa = n_zh = n_ex = n_fam = 0
         for k, e in u.items():
             w = e["w"].strip()
             if not w: continue
@@ -394,10 +459,10 @@ def main():
             ipa_uk = e.get("ipa_uk") or ecd_ph
             zh = e.get("zh") or ecd_tr
             ex, exz, syn, ant = ex_map.get(k.lower(), ("", "", "", ""))
-            fam = root_of(w)
+            fam = word_family(w)
             o = {"w": w}
-            if fam: o["root"] = fam
-            if ecd_col: o["freq"] = ecd_col
+            if fam: o["root"] = fam; n_fam += 1
+            o["freq"] = calc_freq(w)
             if zh: o["zh"] = zh
             if ipa: o["ipa"] = ipa
             if ipa_us: o["ipa_us"] = ipa_us
@@ -413,9 +478,34 @@ def main():
         obj = {"id": bid, "words": words}
         open(os.path.join(BOOKS_DIR, bid + ".js"), "w", encoding="utf-8").write(
             "window.BOOK_%s = %s;" % (bid, json.dumps(obj, ensure_ascii=False)))
-        log("  %-10s -> %d 词 | 有中文=%d 有音标=%d 有例句=%d" % (bid, len(words), n_zh, n_ipa, n_ex))
+        log("  %-10s -> %d 词 | 有中文=%d 有音标=%d 有例句=%d 有词族=%d" % (bid, len(words), n_zh, n_ipa, n_ex, n_fam))
 
-    log("== 6) 构建离线英文释义包 books/en_defs.js（断点续传，随版本增量更新）==")
+    log("== 6) Ogden 基础词后处理：补充 freq + 词族（保留 core/syn/ant 等特有字段）==")
+    ogden_path = os.path.join(BOOKS_DIR, "ogden.js")
+    if os.path.exists(ogden_path):
+        with open(ogden_path, "r", encoding="utf-8") as f:
+            og_code = f.read()
+        og_m = re.search(r"window\.BOOK_\w+\s*=\s*(\{.*?\});?\s*$", og_code, re.DOTALL)
+        if og_m:
+            og_obj = json.loads(og_m.group(1))
+            og_words = og_obj.get("words", [])
+            n_fam = n_freq = 0
+            for ent in og_words:
+                w = ent.get("w", "")
+                if not w: continue
+                # 补充或覆盖 freq
+                ent["freq"] = calc_freq(w); n_freq += 1
+                # 补充词族
+                fam = word_family(w)
+                if fam and fam != w.lower():
+                    ent["root"] = fam; n_fam += 1
+            new_og = "window.BOOK_ogden = %s;" % json.dumps(og_obj, ensure_ascii=False)
+            open(ogden_path, "w", encoding="utf-8").write(new_og)
+            log("  ogden -> %d 词 | 补充freq=%d 补充词族=%d" % (len(og_words), n_freq, n_fam))
+    else:
+        log("  ogden.js 不存在，跳过")
+
+    log("== 7) 构建离线英文释义包 books/en_defs.js（断点续传，随版本增量更新）==")
     en_words = set()
     for u in unions.values():
         for k, e in u.items():
