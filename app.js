@@ -497,7 +497,7 @@
     "anti":"反/抗","counter":"反/对",
     "inter":"之间","intra":"之内",
     "sub":"下/次","super":"上/超","sur":"上/超",
-    "trans":"跨越/转变","ex":"向外/前","extra":"额外/超出",
+    "trans":"跨越/转变","ex":"向外/前","extra":"额外/超出","ad":"向/到",
     "co":"共同","com":"共同","con":"共同","col":"共同","cor":"共同",
     "de":"去除/向下","pro":"向前/支持","per":"贯穿/完全",
     "en":"使…","em":"使…","be":"使…/在",
@@ -510,7 +510,7 @@
     "hyper":"极度","hypo":"低于",
   };
   var SUFFIX_MAP = {
-    "tion":"名词","sion":"名词","ness":"名词","ment":"名词","ity":"名词",
+    "tion":"名词","sion":"名词","ion":"名词","ness":"名词","ment":"名词","ity":"名词",
     "ance":"名词","ence":"名词","ure":"名词","age":"名词","dom":"名词(领域)",
     "hood":"名词(状态)","ship":"名词(关系)",
     "al":"形容词","ial":"形容词","ic":"形容词","ical":"形容词",
@@ -522,39 +522,105 @@
     "ish":"稍/有点","like":"像…","some":"有…倾向","proof":"防…",
     "fold":"…倍","most":"最…",
   };
+  // 已知词族表（与 tools/rebuild_v3.py 的 ROOT_LIST 对齐），用于词法分解时验证"剥离后是否仍是真词根"
+  var ROOT_SET = new Set([
+    "act","aud","bell","bene","bon","bio","cap","cept","cip","capt","ced","ceed","cess","chron",
+    "cid","cis","civ","clar","cogn","cord","corp","cosm","cred","cruc","cub","cumb","cur","curs",
+    "dem","demo","derm","dict","doc","doct","domin","duc","duct","dyn","equ","err","fac","fact",
+    "fic","fect","fer","fid","fin","flagr","flam","flect","flex","flor","flu","flux","fort","forc",
+    "found","form","frag","fract","frat","fus","fund","gen","gener","geo","grad","gress","gram",
+    "graph","grat","grav","greg","hab","hibit","helio","heter","hom","horr","hum","hydr","hypn",
+    "ign","ject","junct","jur","just","juven","lab","labor","langu","lingu","lapid","lat","lav",
+    "leg","lex","lect","lev","liber","libr","lic","lin","liter","loc","loqu","log","logy","luc",
+    "lum","lud","magn","man","manu","mater","matr","medi","mega","mem","mens","ment","merc","migr",
+    "min","miss","mit","mob","mot","mov","mon","mono","mort","morph","multi","mut","nat","nas",
+    "nav","naut","nec","neg","neur","nihil","noc","nox","nom","nomin","nov","numer","nutri","onym",
+    "oper","opt","ora","ordin","orn","paci","pan","par","pare","pat","pass","path","ped","pod",
+    "pel","puls","pend","pens","pet","phil","phon","photo","plat","pli","plic","ply","plex","plor",
+    "pne","pol","port","pos","pon","post","pound","pot","prehend","prim","prob","prov","psych",
+    "publ","pur","pyr","quer","quest","quir","quie","rad","reg","rect","rid","ris","rod","rupt",
+    "sacr","sanct","sal","san","sat","satis","sci","scrib","script","sect","sed","sess","sid",
+    "sens","sent","sequ","secu","sert","sig","sign","simil","simul","sol","son","soph","spec",
+    "spic","sper","spir","stell","struct","suad","sum","super","syn","sym","tang","tact","techn",
+    "tele","tem","ten","tend","term","terr","test","tex","the","theo","therm","tim","tom","ton",
+    "tort","tract","trib","trop","tru","turb","typ","uni","urb","vac","van","val","vari",
+    "ven","vent","ver","verb","vers","vert","viv","vic","vict","vid","vis","voc","vok","vol","volv",
+    "vor","vuln","zo","advert","advertis","comfort","connect","complet","consider","construct",
+    "continu","cover","creat","decid","defin","develop","differ","divid","educ","estim","event",
+    "examin","explain","explor","express","form","grad","imit","improv","incorpor","inform",
+    "intend","interest","interpret","introduc","invent","invest","judg","knowledg","limit",
+    "maintain","manag","measur","mov","natur","observ","offer","organ","perform","practic",
+    "prepar","present","print","produc","provid","purchas","recognis","represent","requir",
+    "research","satisf","sci","sell","serv","solv","spec","spend","star","struct","success",
+    "suggest","suppli","support","tend","term","treat","turn","understand","visit","wait","work",
+    // 拉丁词根截短形式（去掉结尾的辅音便于跨词匹配）
+    "struc","spect","ject","duct","fer","pos","ten","fac","manu","mit","ven","duc",
+    "cap","cep","fin","fus","form","gen","gress","ject","miss","press","script","serv",
+    "sign","simil","solve","tend","tract","vene","versi","vide","voke","volve"
+  ]);
 
-  function fillAnalysis(node, bw) {
+function fillAnalysis(node, bw) {
     var w = bw.w.toLowerCase();
     var el = node.querySelector(".analysis-line");
     if (!el) return;
-    // 查找前缀（按长度降序）
-    var pre = "", preMean = "", afterPre = w;
+    if (w.length < 5) { el.style.display = "none"; return; }
     var preKeys = Object.keys(PREFIX_MAP).sort(function(a,b){return b.length-a.length;});
-    for (var i = 0; i < preKeys.length; i++) {
-      var p = preKeys[i];
-      if (w.slice(0, p.length) === p && w.length > p.length + 2) {
-        pre = p; preMean = PREFIX_MAP[p]; afterPre = w.slice(p.length); break;
-      }
-    }
-    // 查找后缀（按长度降序）
-    var suf = "", sufMean = "", stem = afterPre;
     var sufKeys = Object.keys(SUFFIX_MAP).sort(function(a,b){return b.length-a.length;});
-    for (var j = 0; j < sufKeys.length; j++) {
-      var s = sufKeys[j];
-      if (afterPre.slice(-s.length) === s && afterPre.length > s.length + 2) {
-        suf = s; sufMean = SUFFIX_MAP[s]; stem = afterPre.slice(0, -s.length); break;
+    // 递归分解：返回扁平 morpheme 列表 [prefix?, root, suffix?]
+    // 优先 1) 整词为词根；2) prefix+root+suffix（root 在 ROOT_SET）；3) 递归向内
+    function decomp(word, depth) {
+      if (depth > 4 || word.length < 3) return null;
+      // 1) 整词就是词根
+      if (ROOT_SET.has(word)) return [{type:'root', val:word}];
+      var cands = [];
+      // 2) prefix + suffix（root 在 ROOT_SET）
+      for (var pi = 0; pi < preKeys.length; pi++) {
+        var p = preKeys[pi];
+        if (word.slice(0, p.length) !== p || word.length <= p.length + 3) continue;
+        var afterPre = word.slice(p.length);
+        for (var si = 0; si < sufKeys.length; si++) {
+          var s = sufKeys[si];
+          if (afterPre.slice(-s.length) !== s || afterPre.length <= s.length + 2) continue;
+          var stem = afterPre.slice(0, afterPre.length - s.length);
+          if (stem.length < 3) continue;
+          if (!ROOT_SET.has(stem)) continue;
+          var score = stem.length + (p && s ? 200 : 100);
+          cands.push({p:p, s:s, stem:stem, score:score});
+        }
       }
+      // 选最优 prefix+suffix
+      if (cands.length) {
+        cands.sort(function(a,b){return b.score-a.score;});
+        var b = cands[0];
+        return [{type:'p', val:b.p}, {type:'root', val:b.stem}, {type:'s', val:b.s}];
+      }
+      // 3) 递归：尝试剥前缀或后缀后继续分析剩余部分
+      for (var pi2 = 0; pi2 < preKeys.length; pi2++) {
+        var p2 = preKeys[pi2];
+        if (word.slice(0, p2.length) !== p2 || word.length <= p2.length + 3) continue;
+        var rest = word.slice(p2.length);
+        var sub = decomp(rest, depth + 1);
+        if (sub) return [{type:'p', val:p2}].concat(sub);
+      }
+      for (var si2 = 0; si2 < sufKeys.length; si2++) {
+        var s2 = sufKeys[si2];
+        if (word.slice(-s2.length) !== s2 || word.length <= s2.length + 3) continue;
+        var stem2 = word.slice(0, word.length - s2.length);
+        var sub2 = decomp(stem2, depth + 1);
+        if (sub2) return sub2.concat([{type:'s', val:s2}]);
+      }
+      return null;
     }
-    var rootTxt = (pre || suf) ? stem : (bw.root || w);
-    if (rootTxt.length < 2) { el.style.display = "none"; return; }
-    if (pre.length + suf.length > w.length * 0.8 && (pre || suf)) { el.style.display = "none"; return; }
-    if ((pre || suf) && rootTxt.length < 3) { el.style.display = "none"; return; }
-    if (!pre && !suf) { el.style.display = "none"; return; }
-    // 构建内联 HTML（· 分隔，与 IPA 格式一致）
+    var morphs = decomp(w, 0);
+    if (!morphs) { el.style.display = "none"; return; }
+    // 渲染 morpheme 列表
     var parts = [];
-    if (pre) parts.push('<span class="ana-pre">' + pre + '-<sub>' + preMean + '</sub></span>');
-    parts.push('<span class="ana-root">-' + rootTxt + '-</span>');
-    if (suf) parts.push('<span class="ana-suf">-' + suf + '<sub>' + sufMean + '</sub></span>');
+    for (var i = 0; i < morphs.length; i++) {
+      var m = morphs[i];
+      if (m.type === 'p') parts.push('<span class="ana-pre">' + m.val + '-<sub>' + PREFIX_MAP[m.val] + '</sub></span>');
+      else if (m.type === 's') parts.push('<span class="ana-suf">-' + m.val + '<sub>' + SUFFIX_MAP[m.val] + '</sub></span>');
+      else parts.push('<span class="ana-root">-' + m.val + '-</span>');
+    }
     el.innerHTML = parts.join(" · ");
     el.style.display = "";
   }
