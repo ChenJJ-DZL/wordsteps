@@ -9,11 +9,11 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260725b";           // 版本号：强制刷新缓存（freq/词族100%覆盖 + 词根→词族文案更新）
+  var APP_VER = "20260727a";           // 版本号：强制刷新缓存（首次复习间隔4小时 + 下次复习预览 + 数据持久化诊断）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
-  var T_10MIN = 10 * 60 * 1000, T_1D = 1 * DAY;
+  var T_10MIN = 10 * 60 * 1000, T_4H = 4 * 3600 * 1000, T_1D = 1 * DAY;
   var EB = [T_10MIN, T_1D, 2 * DAY, 4 * DAY, 7 * DAY, 15 * DAY, 30 * DAY, 60 * DAY, 120 * DAY];
 
   /* ---------- 状态 / 版本化迁移 ---------- */
@@ -227,7 +227,7 @@
     var rs = bookRecs(id), r = rs[word];
     if (!r) {
       var now = Date.now();
-      r = rs[word] = { word: word, firstLearned: now, lastReviewed: now, nextReview: now + T_1D, interval: T_1D, reps: 1, lapses: 0, lastRating: "new", status: "learning" };
+      r = rs[word] = { word: word, firstLearned: now, lastReviewed: now, nextReview: now + T_4H, interval: T_4H, reps: 0, lapses: 0, lastRating: "new", status: "learning" };
       saveState();
     } else {
       migrateRecord(r);  // 懒迁移旧格式记录
@@ -236,12 +236,15 @@
   }
   function scheduleReview(id, word, rating) {
     var r = ensureRecord(id, word), now = Date.now();
-    var iv = r.interval || T_1D;
-    if (rating === "know") {
+    var iv = r.interval || T_4H;
+    // 首次复习(间隔=T_4H 且 reps=0)：认识→进入日级循环(1天)，不认识→重置4小时
+    if (r.reps === 0 && rating === "know") {
+      iv = T_1D; r.status = "review";
+    } else if (rating === "know") {
       iv = Math.min(Math.round(iv * 2), 120 * DAY);  // 自适应加倍，上限120天
       r.status = iv >= 60 * DAY ? "mastered" : "review";
     } else if (rating === "fuzzy") {
-      iv = Math.max(Math.round(iv * 0.5), DAY);       // 减半，最低1天
+      iv = Math.max(Math.round(iv * 0.5), T_4H);     // 减半，最低4小时
       r.status = "review";
     } else {
       iv = T_10MIN; r.lapses = (r.lapses || 0) + 1;   // 完全遗忘，重置
@@ -514,6 +517,29 @@
       document.getElementById("ms-time").textContent = mins + "m";
       document.getElementById("ms-lapses").textContent = s.lapses;
       document.getElementById("home-review-sub").textContent = s.due + " 个单词待复习";
+      // 计算即将到来的复习（4小时内 + 24小时内）
+      var now = Date.now(), upcoming4h = 0, upcoming24h = 0;
+      var rs = bookRecs(id);
+      for (var w in rs) {
+        var nr = rs[w].nextReview;
+        if (nr > now && nr <= now + T_4H) upcoming4h++;
+        if (nr > now && nr <= now + T_1D) upcoming24h++;
+      }
+      if (s.due > 0) {
+        // 有到期复习
+      } else if (upcoming4h > 0) {
+        var nextTime = new Date(now + T_4H);
+        document.getElementById("home-review-sub").textContent = "约 " + upcoming4h + " 个单词即将需复习（" + nextTime.getHours() + ":" + (nextTime.getMinutes()<10?"0":"") + nextTime.getMinutes() + " 左右）";
+      } else {
+        document.getElementById("home-review-sub").textContent = upcoming24h + " 个单词复习中（最晚今夜到齐）";
+      }
+      // 上次学习时间
+      var lastSession = state.sessions[0];
+      if (lastSession) {
+        var elapsed = now - lastSession.ts;
+        var agoStr = elapsed < 60000 ? "刚刚" : elapsed < 3600000 ? Math.round(elapsed / 60000) + "分钟前" : elapsed < 86400000 ? Math.round(elapsed / 3600000) + "小时前" : Math.round(elapsed / 86400000) + "天前";
+        document.getElementById("home-review-sub").textContent += " · 上次 " + agoStr;
+      }
       var limit = state.settings.dailyNewLimit || 0, totalNew = newWords(id, 0).length;
       document.getElementById("home-learn-sub").textContent = totalNew + " 个新词待学" + (limit > 0 ? "（今日上限 " + limit + "）" : "");
       document.getElementById("home-limit").value = limit;
