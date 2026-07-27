@@ -525,10 +525,9 @@
 
   function fillAnalysis(node, bw) {
     var w = bw.w.toLowerCase();
-    var el = node.querySelector(".analysis");
-    var textEl = node.querySelector(".analysis-text");
-    if (!el || !textEl) return;
-    // 查找前缀（按长度降序，先匹配长的如 inter 再短的如 in）
+    var el = node.querySelector(".analysis-line");
+    if (!el) return;
+    // 查找前缀（按长度降序）
     var pre = "", preMean = "", afterPre = w;
     var preKeys = Object.keys(PREFIX_MAP).sort(function(a,b){return b.length-a.length;});
     for (var i = 0; i < preKeys.length; i++) {
@@ -546,19 +545,17 @@
         suf = s; sufMean = SUFFIX_MAP[s]; stem = afterPre.slice(0, -s.length); break;
       }
     }
-    // 词根/词族 = 剩余部分（如果无前后缀就用 bw.root）
     var rootTxt = (pre || suf) ? stem : (bw.root || w);
     if (rootTxt.length < 2) { el.style.display = "none"; return; }
-    // 前置校验：前后缀不能占词的一大半（>80%），且剥离后核心至少3字母
     if (pre.length + suf.length > w.length * 0.8 && (pre || suf)) { el.style.display = "none"; return; }
     if ((pre || suf) && rootTxt.length < 3) { el.style.display = "none"; return; }
-    // 至少有一个成分
     if (!pre && !suf) { el.style.display = "none"; return; }
-    // 构建 HTML
-    var html = pre ? '<span class="ana-pre">' + pre + '- <sub>' + preMean + '</sub></span> + ' : '';
-    html += '<span class="ana-root">-' + rootTxt + '-</span>';
-    html += suf ? ' + <span class="ana-suf">-' + suf + ' <sub>' + sufMean + '</sub></span>' : '';
-    textEl.innerHTML = html;
+    // 构建内联 HTML（· 分隔，与 IPA 格式一致）
+    var parts = [];
+    if (pre) parts.push('<span class="ana-pre">' + pre + '-<sub>' + preMean + '</sub></span>');
+    parts.push('<span class="ana-root">-' + rootTxt + '-</span>');
+    if (suf) parts.push('<span class="ana-suf">-' + suf + '<sub>' + sufMean + '</sub></span>');
+    el.innerHTML = parts.join(" · ");
     el.style.display = "";
   }
 

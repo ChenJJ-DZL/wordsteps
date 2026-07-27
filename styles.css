@@ -277,13 +277,13 @@ body {
 .flip-face {
   position: absolute; inset: 0;
   background: var(--surface); border: 1px solid var(--line); border-radius: 20px;
-  box-shadow: var(--shadow); padding: 20px 20px 18px; display: flex; flex-direction: column;
+  box-shadow: var(--shadow); padding: 14px 16px 12px; display: flex; flex-direction: column;
   overflow: hidden;
   -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility;
 }
 /* 默认显示正面；翻面后显示背面，仅在边缘(不可见)处交换，故无共面/3D 发虚问题 */
 .flip-front { align-items: center; justify-content: center; text-align: center; opacity: 1; visibility: visible; transition: opacity .16s ease; z-index: 2; }
-.flip-back { display: flex; flex-direction: column; gap: 11px; opacity: 0; visibility: hidden; transition: opacity .16s ease; z-index: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.flip-back { display: flex; flex-direction: column; gap: 8px; opacity: 0; visibility: hidden; transition: opacity .16s ease; z-index: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .flip-card.flipped .flip-front { opacity: 0; visibility: hidden; }
 .flip-card.flipped .flip-back { opacity: 1; visibility: visible; }
 .speak {
@@ -293,19 +293,18 @@ body {
 .flip-front .word { font-size: 50px; font-weight: 800; letter-spacing: .5px; }
 .flip-front .ipa { font-size: 20px; color: var(--ink-soft); margin-top: 12px; font-family: "Georgia", serif; }
 .flip-front .hint-flip { position: absolute; bottom: 18px; font-size: 13px; color: var(--ink-faint); }
-.b-head { display: flex; align-items: baseline; gap: 10px; padding-right: 50px; border-bottom: 1px solid var(--line); padding-bottom: 9px; }
+.b-head { display: flex; align-items: baseline; gap: 10px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
 .b-head .word-sm { font-size: 30px; font-weight: 800; }
-.b-head .ipa-sm { font-size: 18px; color: var(--ink-soft); font-family: "Georgia", serif; }
+.b-head .ipa-sm { font-size: 16px; color: var(--ink-soft); font-family: "Georgia", serif; }
 .flip-back .zh { font-size: 25px; font-weight: 700; line-height: 1.4; }
-/* 词法分解行 */
-.flip-back .analysis {
-  font-size: 14px; color: var(--ink-soft); line-height: 1.6;
-  background: var(--surface-2); border-radius: 10px; padding: 7px 12px;
+/* 词法分解行（融入音标格式） */
+.flip-back .analysis-line {
+  font-size: 16px; color: var(--ink-soft); font-family: "Georgia", serif; line-height: 1.4;
 }
-.flip-back .analysis .ana-pre { color: var(--mid); font-weight: 700; }
-.flip-back .analysis .ana-root { color: var(--primary); font-weight: 700; }
-.flip-back .analysis .ana-suf { color: var(--good); font-weight: 700; }
-.flip-back .analysis sub { font-weight: 400; font-size: 11px; color: var(--ink-faint); }
+.flip-back .analysis-line .ana-pre { color: var(--mid); font-weight: 600; }
+.flip-back .analysis-line .ana-root { color: var(--primary); font-weight: 600; }
+.flip-back .analysis-line .ana-suf { color: var(--good); font-weight: 600; }
+.flip-back .analysis-line sub { font-weight: 400; font-size: 11px; color: var(--ink-faint); }
 .flip-back .en { font-size: 19px; color: var(--ink-soft); line-height: 1.45; }
 .block { margin: 0; }
 .block .tag { display: inline-block; font-size: 13px; color: var(--primary); background: var(--primary-soft); border-radius: 6px; padding: 2px 9px; margin-bottom: 5px; font-weight: 600; }
