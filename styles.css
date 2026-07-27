@@ -297,6 +297,15 @@ body {
 .b-head .word-sm { font-size: 30px; font-weight: 800; }
 .b-head .ipa-sm { font-size: 18px; color: var(--ink-soft); font-family: "Georgia", serif; }
 .flip-back .zh { font-size: 25px; font-weight: 700; line-height: 1.4; }
+/* 词法分解行 */
+.flip-back .analysis {
+  font-size: 14px; color: var(--ink-soft); line-height: 1.6;
+  background: var(--surface-2); border-radius: 10px; padding: 7px 12px;
+}
+.flip-back .analysis .ana-pre { color: var(--mid); font-weight: 700; }
+.flip-back .analysis .ana-root { color: var(--primary); font-weight: 700; }
+.flip-back .analysis .ana-suf { color: var(--good); font-weight: 700; }
+.flip-back .analysis sub { font-weight: 400; font-size: 11px; color: var(--ink-faint); }
 .flip-back .en { font-size: 19px; color: var(--ink-soft); line-height: 1.45; }
 .block { margin: 0; }
 .block .tag { display: inline-block; font-size: 13px; color: var(--primary); background: var(--primary-soft); border-radius: 6px; padding: 2px 9px; margin-bottom: 5px; font-weight: 600; }

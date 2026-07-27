@@ -467,9 +467,6 @@
   function fillBack(node, bw) {
     var word = node._word, c = state.cache[word];
     var en = (c && c.en) ? c.en : (c && c.loaded ? (c.error ? "（离线，暂无英文释义）" : "") : "加载中…");
-    // 例句：所有词库均用「真题例句(kajweb) + 公版读物例句」填充（见 tools/build_examples_v2.py），
-    // 优先 bw.ex(英文) + bw.exz(中文译文)；真题例句自带校对中文，公版例句经 gtx 翻译。
-    // 两者皆无时 bw.ex 缺失，回退 dictionaryapi.dev 英文例句 c.ex（仅英文）。
     var exEn = bw.ex ? bw.ex : (c && c.ex) ? c.ex : (c && c.loaded ? (c.error ? "" : "（暂无例句）") : "加载中…");
     var exZh = bw.exz ? bw.exz : "";
     node.querySelector(".en").textContent = en;
@@ -483,11 +480,86 @@
     if (syn.length) syn.forEach(function (s) { sb.appendChild(mkChip(s)); }); else sb.innerHTML = '<span class="chip empty">无</span>';
     var ab = node.querySelector(".ant-chips"); ab.innerHTML = "";
     if (ant.length) ant.forEach(function (s) { ab.appendChild(mkChip(s)); }); else ab.innerHTML = '<span class="chip empty">无</span>';
+    fillAnalysis(node, bw);
   }
   function mkChip(s) {
     var c = document.createElement("span"); c.className = "chip"; c.textContent = s;
     c.addEventListener("click", function (e) { e.stopPropagation(); playAudio(s); });
     return c;
+  }
+
+  /* ---------- 词法分解（前/词缀 + 词根 + 后缀） ---------- */
+  var PREFIX_MAP = {
+    "un":"不/非","in":"不/非","im":"不/非","il":"不/非","ir":"不/非","non":"非/无","a":"非/无","dis":"否定/相反",
+    "re":"再/重复","pre":"前/预","fore":"前/预","post":"后",
+    "over":"过度/在上","under":"不足/在下","up":"向上","down":"向下","out":"向外/超过",
+    "mis":"错误","mal":"坏/错误",
+    "anti":"反/抗","counter":"反/对",
+    "inter":"之间","intra":"之内",
+    "sub":"下/次","super":"上/超","sur":"上/超",
+    "trans":"跨越/转变","ex":"向外/前","extra":"额外/超出",
+    "co":"共同","com":"共同","con":"共同","col":"共同","cor":"共同",
+    "de":"去除/向下","pro":"向前/支持","per":"贯穿/完全",
+    "en":"使…","em":"使…","be":"使…/在",
+    "auto":"自己","bi":"双","tri":"三","multi":"多","semi":"半",
+    "micro":"微","macro":"宏","mono":"单","poly":"多",
+    "neo":"新","pseudo":"伪","quasi":"准",
+    "tele":"远程","photo":"光","geo":"地","bio":"生命",
+    "hetero":"异","homo":"同","intro":"向内","retro":"向后",
+    "circum":"周围","peri":"周围","mid":"中",
+    "hyper":"极度","hypo":"低于",
+  };
+  var SUFFIX_MAP = {
+    "tion":"名词","sion":"名词","ness":"名词","ment":"名词","ity":"名词",
+    "ance":"名词","ence":"名词","ure":"名词","age":"名词","dom":"名词(领域)",
+    "hood":"名词(状态)","ship":"名词(关系)",
+    "al":"形容词","ial":"形容词","ic":"形容词","ical":"形容词",
+    "ous":"形容词","ious":"形容词","ive":"形容词","ative":"形容词",
+    "ful":"形容词","less":"无/缺","able":"可…","ible":"可…",
+    "ly":"副词","wise":"副词(方向)","ward":"副词(方向)",
+    "er":"名词(者)","or":"名词(者)","ist":"名词(者)",
+    "ize":"动词","ise":"动词","ify":"动词","ate":"动词",
+    "ish":"稍/有点","like":"像…","some":"有…倾向","proof":"防…",
+    "fold":"…倍","most":"最…",
+  };
+
+  function fillAnalysis(node, bw) {
+    var w = bw.w.toLowerCase();
+    var el = node.querySelector(".analysis");
+    var textEl = node.querySelector(".analysis-text");
+    if (!el || !textEl) return;
+    // 查找前缀（按长度降序，先匹配长的如 inter 再短的如 in）
+    var pre = "", preMean = "", afterPre = w;
+    var preKeys = Object.keys(PREFIX_MAP).sort(function(a,b){return b.length-a.length;});
+    for (var i = 0; i < preKeys.length; i++) {
+      var p = preKeys[i];
+      if (w.slice(0, p.length) === p && w.length > p.length + 2) {
+        pre = p; preMean = PREFIX_MAP[p]; afterPre = w.slice(p.length); break;
+      }
+    }
+    // 查找后缀（按长度降序）
+    var suf = "", sufMean = "", stem = afterPre;
+    var sufKeys = Object.keys(SUFFIX_MAP).sort(function(a,b){return b.length-a.length;});
+    for (var j = 0; j < sufKeys.length; j++) {
+      var s = sufKeys[j];
+      if (afterPre.slice(-s.length) === s && afterPre.length > s.length + 2) {
+        suf = s; sufMean = SUFFIX_MAP[s]; stem = afterPre.slice(0, -s.length); break;
+      }
+    }
+    // 词根/词族 = 剩余部分（如果无前后缀就用 bw.root）
+    var rootTxt = (pre || suf) ? stem : (bw.root || w);
+    if (rootTxt.length < 2) { el.style.display = "none"; return; }
+    // 前置校验：前后缀不能占词的一大半（>80%），且剥离后核心至少3字母
+    if (pre.length + suf.length > w.length * 0.8 && (pre || suf)) { el.style.display = "none"; return; }
+    if ((pre || suf) && rootTxt.length < 3) { el.style.display = "none"; return; }
+    // 至少有一个成分
+    if (!pre && !suf) { el.style.display = "none"; return; }
+    // 构建 HTML
+    var html = pre ? '<span class="ana-pre">' + pre + '- <sub>' + preMean + '</sub></span> + ' : '';
+    html += '<span class="ana-root">-' + rootTxt + '-</span>';
+    html += suf ? ' + <span class="ana-suf">-' + suf + ' <sub>' + sufMean + '</sub></span>' : '';
+    textEl.innerHTML = html;
+    el.style.display = "";
   }
 
   /* ---------- 温和后台预取（不刷屏、遇限流即停） ---------- */
