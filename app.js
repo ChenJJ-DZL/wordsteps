@@ -751,9 +751,12 @@
     loadBook(id, function () { learnQueue = newWords(id, limit); learnIdx = 0; learnRated = 0; startSession(); renderLearn(); });
   }
   function renderLearn() {
-    var id = curBook();
+    var id = curBook(), now = Date.now();
     var stage = document.getElementById("learn-stage"); stage.innerHTML = "";
-    document.getElementById("learn-counter").textContent = (learnQueue.length ? learnRated + 1 : 0) + " / " + learnQueue.length;
+    // 当天已学新词数（从 records 计数，跨会话累计）
+    var sod = startOfDay(now), rs = bookRecs(id), todayTotal = 0;
+    for (var w in rs) { if (startOfDay(rs[w].firstLearned) === sod) todayTotal++; }
+    document.getElementById("learn-counter").textContent = "今日已学 " + todayTotal + " 词" + (learnQueue.length ? " · 当前第 " + (learnIdx + 1) + "/" + learnQueue.length : "");
     updateCacheBadge(id);
     if (!learnQueue.length) {
       var limit = state.settings.dailyNewLimit || 0;
@@ -895,8 +898,8 @@
     REGISTRY.forEach(function (r) { var o = document.createElement("option"); o.value = r.id; o.textContent = bookLabel(r.id); sel.appendChild(o); });
     sel.value = curBook();
   }
-  homeSel.addEventListener("change", function () { state.settings.book = homeSel.value; saveState(); learnSel.value = curBook(); renderHome(); });
-  learnSel.addEventListener("change", function () { state.settings.book = learnSel.value; saveState(); homeSel.value = curBook(); showView("learn"); });
+  homeSel.addEventListener("change", function () { state.settings.book = homeSel.value; saveState(); if (learnSel) learnSel.value = curBook(); renderHome(); });
+  if (learnSel) learnSel.addEventListener("change", function () { state.settings.book = learnSel.value; saveState(); homeSel.value = curBook(); showView("learn"); });
 
   /* ---------- 排序方式开关（字母 / 词频 / 词根，逐本记忆，默认全部词根） ---------- */
   var sortSeg = document.getElementById("home-sort");
@@ -963,7 +966,7 @@
   }
 
   /* ---------- 初始化 ---------- */
-  fillBookSelect(homeSel); fillBookSelect(learnSel);
+  fillBookSelect(homeSel); if (learnSel) fillBookSelect(learnSel);
   window.addEventListener("beforeunload", endSession);
   refreshAccent();
   refreshInc();
