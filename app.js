@@ -439,6 +439,11 @@
     var node = tpl.content.firstElementChild.cloneNode(true);
     node._word = bw.w;
     var ipa = bw.ipa_uk || bw.ipa_us || "";
+    // 根据单词+IPA长度加 class，避免长词溢出/折行
+    var wlen = bw.w.length, ilen = ipa ? ipa.length : 0, total = wlen + ilen;
+    if (total > 18) node.classList.add("xlong");
+    else if (total > 14) node.classList.add("long");
+    else if (total > 10) node.classList.add("medium");
     node.querySelector(".word").textContent = bw.w;
     node.querySelector(".ipa").textContent = ipa;
     var rootBadge = node.querySelector(".root-badge");
