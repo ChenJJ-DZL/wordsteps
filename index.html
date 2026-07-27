@@ -9,7 +9,7 @@
   <link rel="icon" href="favicon.ico?v=8" sizes="any" />
   <link rel="icon" href="icon.svg?v=8" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon-512.png" />
-  <link rel="stylesheet" href="styles.css?v=20260727a" />
+  <link rel="stylesheet" href="styles.css?v=20260727b" />
 </head>
 <body>
   <header class="topbar">
@@ -131,9 +131,11 @@
       </span>
     </div>
     <div class="card-stage" id="learn-stage"></div>
-    <div class="learn-controls">
-      <button class="btn-ghost" id="learn-skip">跳过</button>
-      <button class="btn-primary" id="learn-done">我记住了 ✓</button>
+    <div class="rate-controls" id="learn-rate-controls">
+      <button class="rate rate-bad" data-rate="unknown">😵 不认识</button>
+      <button class="rate rate-mid" data-rate="fuzzy">🤔 模糊</button>
+      <button class="rate rate-good" data-rate="know">😎 认识</button>
+    </div>
     </div>
   </main>
 
@@ -232,9 +234,9 @@
 
   <audio id="player" hidden></audio>
 
-  <script src="books/manifest.js?v=20260727a"></script>
-  <script src="books/en_defs.js?v=20260727a"></script>
-  <script src="app.js?v=20260727a"></script>
+  <script src="books/manifest.js?v=20260727b"></script>
+  <script src="books/en_defs.js?v=20260727b"></script>
+  <script src="app.js?v=20260727b"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {

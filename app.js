@@ -9,7 +9,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260727a";           // 版本号：强制刷新缓存（首次复习间隔4小时 + 下次复习预览 + 数据持久化诊断）
+  var APP_VER = "20260727b";           // 版本号：强制刷新缓存（学习板块改为三档评分 与复习统一）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
@@ -627,16 +627,16 @@
   });
 
   /* ---------- 学习（新词） ---------- */
-  var learnQueue = [], learnIdx = 0;
+  var learnQueue = [], learnIdx = 0, learnRated = 0;
   function startLearn() {
     var id = curBook();
     var limit = state.settings.dailyNewLimit || 0;
-    loadBook(id, function () { learnQueue = newWords(id, limit); learnIdx = 0; startSession(); renderLearn(); });
+    loadBook(id, function () { learnQueue = newWords(id, limit); learnIdx = 0; learnRated = 0; startSession(); renderLearn(); });
   }
   function renderLearn() {
     var id = curBook();
     var stage = document.getElementById("learn-stage"); stage.innerHTML = "";
-    document.getElementById("learn-counter").textContent = (learnQueue.length ? learnIdx + 1 : 0) + " / " + learnQueue.length;
+    document.getElementById("learn-counter").textContent = (learnQueue.length ? learnRated + 1 : 0) + " / " + learnQueue.length;
     updateCacheBadge(id);
     if (!learnQueue.length) {
       var limit = state.settings.dailyNewLimit || 0;
@@ -650,13 +650,12 @@
     var bw = learnQueue[learnIdx];
     var node = buildCard(bw); stage.appendChild(node); prepareCard(bw, node);
   }
-  document.getElementById("learn-done").addEventListener("click", function () {
-    if (!learnQueue.length) return;
-    var bw = learnQueue[learnIdx]; ensureRecord(curBook(), bw.w);
-    if (curSession) curSession.newCount++; learnIdx++; renderLearn();
-  });
-  document.getElementById("learn-skip").addEventListener("click", function () {
-    if (!learnQueue.length) return; learnIdx++; renderLearn();
+  document.getElementById("learn-rate-controls").addEventListener("click", function (e) {
+    var btn = e.target.closest(".rate"); if (!btn || !learnQueue.length) return;
+    var rating = btn.dataset.rate, bw = learnQueue[learnIdx];
+    scheduleReview(curBook(), bw.w, rating);
+    if (curSession) { curSession.newCount++; curSession[rating]++; }
+    learnRated++; learnIdx++; renderLearn();
   });
 
   /* ---------- 复习 ---------- */
