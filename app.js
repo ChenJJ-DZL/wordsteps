@@ -447,10 +447,7 @@
     node.querySelector(".word").textContent = bw.w;
     node.querySelector(".ipa").textContent = ipa;
     var rootBadge = node.querySelector(".root-badge");
-    if (rootBadge) {
-      if (bw.root) { rootBadge.style.display = "inline-block"; rootBadge.textContent = "族：-" + bw.root + "-"; }
-      else { rootBadge.style.display = "none"; }
-    }
+    if (rootBadge) rootBadge.style.display = "none";
     node.querySelector(".word-sm").textContent = bw.w;
     node.querySelector(".ipa-sm").textContent = ipa;
     node.querySelector(".zh").textContent = bw.zh || "";
