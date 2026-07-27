@@ -563,6 +563,61 @@
     "cap","cep","fin","fus","form","gen","gress","ject","miss","press","script","serv",
     "sign","simil","solve","tend","tract","vene","versi","vide","voke","volve"
   ]);
+  // 已知词族的中文含义（按 ROOT_SET 配套），用于显示"<sub>转/看/...</sub>"的下标说明
+  var ROOT_MEANINGS = {
+    act:"行动",aud:"听",bell:"战争",bene:"好",bon:"好",bio:"生命",cap:"头/抓",cept:"拿",
+    cip:"拿",capt:"抓",ced:"走",ceed:"走",cess:"走",chron:"时间",cid:"切",cis:"切",
+    civ:"公民",clar:"清楚",cogn:"知道",cord:"心",corp:"身体",cosm:"宇宙",cred:"相信",
+    cruc:"十字/交叉",cub:"躺",cumb:"躺",cur:"跑",curs:"跑",dem:"人民",demo:"人民",derm:"皮",
+    dict:"说",doc:"教",doct:"教",domin:"主",duc:"引/导",duct:"引/导",dyn:"力量",
+    equ:"等",err:"错",fac:"做/造",fact:"做/造",fic:"做",fect:"做",fer:"带/承",fid:"信",
+    fin:"结束",flagr:"烧",flam:"烧",flect:"弯",flex:"弯",flor:"花",flu:"流",flux:"流",
+    fort:"强",forc:"强",found:"建/底",form:"形",frag:"碎",fract:"碎",frat:"兄弟",fus:"流",
+    fund:"底",gen:"生/族",gener:"生/族",geo:"地",grad:"步/级",gress:"步",gram:"写/字",
+    graph:"写/图",grat:"感谢",grav:"重",greg:"群",hab:"有/住",hibit:"有",helio:"太阳",
+    heter:"异",hom:"同",horr:"怕",hum:"地/人",hydr:"水",hypn:"睡",ign:"火",
+    ject:"投/扔",junct:"连接",jur:"法/誓",just:"法",juven:"年轻",lab:"工作",labor:"工作",
+    langu:"语言",lingu:"语言",lapid:"石",lat:"带",lav:"洗",leg:"法",lex:"法",
+    lect:"选/读",lev:"举/轻",liber:"自由",libr:"书",lic:"允许",lin:"线",liter:"文字",
+    loc:"地方",loqu:"说",log:"说/词",logy:"学",luc:"光",lum:"光",lud:"玩/戏",
+    magn:"大",man:"手",manu:"手",mater:"母",matr:"母",medi:"中",mega:"大",mem:"记",
+    mens:"测量",ment:"心/智",merc:"商/贸易",migr:"移",min:"小",miss:"送",mit:"送",
+    mob:"动",mot:"动",mov:"动",mon:"警告/独",mono:"单",mort:"死",morph:"形",multi:"多",
+    mut:"变",nat:"生",nas:"鼻",nav:"船",naut:"船",nec:"伤",neg:"否",neur:"神经",nihil:"无",
+    noc:"伤",nox:"伤",nom:"名",nomin:"名",nov:"新",numer:"数",nutri:"养",
+    oper:"工作",opt:"选",ora:"说",ordin:"顺序",orn:"装饰",paci:"和平",pan:"全",
+    par:"等/比",pare:"准备",pat:"走/父",pass:"走/过",path:"感情/路",ped:"脚",pod:"脚",
+    pel:"推",puls:"推",pend:"挂/称",pens:"称",pet:"寻求/宠",phil:"爱",phon:"声",
+    photo:"光",plat:"平",pli:"折",plic:"折",ply:"折",plex:"折",plor:"探索",pne:"气/呼吸",
+    pol:"极/城",port:"港/带",pos:"放",pon:"放",post:"后",pound:"重",pot:"能/喝",
+    prehend:"抓",prim:"第一",prob:"证明",prov:"证明",psych:"精神",publ:"公共",pur:"纯",
+    pyr:"火",quer:"询问",quest:"询问",quir:"询问",quie:"安静",rad:"根/辐",reg:"王/规则",
+    rect:"正/直",rid:"笑",ris:"笑/起",rod:"咬",rupt:"破",sacr:"神圣",sanct:"神圣",sal:"盐/健康",
+    san:"健康",sat:"足够",satis:"足够",sci:"知道",scrib:"写",script:"写",sect:"切",
+    sed:"坐",sess:"坐",sid:"坐",sens:"感觉",sent:"感觉/送",sequ:"跟随",secu:"跟随",
+    sert:"放/连接",sig:"记号",sign:"记号",simil:"相似",simul:"相似",sol:"单独/太阳",
+    son:"声",soph:"聪明",spec:"看",spic:"看",sper:"希望",spir:"呼吸",stell:"星",
+    struct:"建",suad:"劝",sum:"拿/和",super:"上",syn:"同",sym:"同",tang:"触",tact:"触",
+    techn:"技术",tele:"远",tem:"时间",ten:"持",tend:"伸",term:"边界",terr:"土地/怕",
+    test:"证明",tex:"织",the:"神",theo:"神",therm:"热",tim:"怕",tom:"切",ton:"声",
+    tort:"扭",tract:"拉",trib:"部落",trop:"转",tru:"真",turb:"搅",typ:"类型",
+    uni:"一",urb:"城",vac:"空",van:"空",val:"价值/强",vari:"变",ven:"来",vent:"来",
+    ver:"转",verb:"词",vers:"转",vert:"转",viv:"活",vic:"胜",vict:"胜",vid:"看",
+    vis:"看",voc:"叫/声",vok:"叫",vol:"飞/意愿",volv:"滚",vor:"吃",vuln:"伤",zo:"动物",
+    advert:"注意/转向",advertis:"注意",comfort:"舒适",connect:"连接",complet:"完整",
+    consider:"考虑",construct:"建",continu:"继续",cover:"盖",creat:"创造",decid:"决定",
+    defin:"定义",develop:"发展",differ:"不同",divid:"分",educ:"教育",estim:"估计",
+    event:"事件",examin:"检查",explain:"解释",explor:"探索",express:"表达",form:"形",
+    grad:"步",imit:"模仿",improv:"改进",incorpor:"合并",inform:"通知",intend:"打算",
+    interest:"兴趣",interpret:"解释",introduc:"介绍",invent:"发明",invest:"投资",
+    judg:"判断",knowledg:"知识",limit:"限制",maintain:"维持",manag:"管理",
+    measur:"测量",mov:"动",natur:"自然",observ:"观察",offer:"提供",organ:"器官",
+    perform:"表演",practic:"实践",prepar:"准备",present:"呈现",print:"打印",produc:"生产",
+    provid:"提供",purchas:"买",recognis:"认出",represent:"代表",requir:"要求",
+    research:"研究",satisf:"满意",sell:"卖",serv:"服务",solv:"解决",spend:"花",
+    star:"星",success:"成功",suggest:"建议",suppli:"供应",support:"支持",tend:"倾向",
+    term:"期限",treat:"对待",turn:"转",understand:"理解",visit:"访问",wait:"等",work:"工作"
+  };
 
 function fillAnalysis(node, bw) {
     var w = bw.w.toLowerCase();
@@ -624,7 +679,7 @@ function fillAnalysis(node, bw) {
       var m = morphs[i];
       if (m.type === 'p') parts.push('<span class="ana-pre">' + m.val + '-<sub>' + PREFIX_MAP[m.val] + '</sub></span>');
       else if (m.type === 's') parts.push('<span class="ana-suf">-' + m.val + '<sub>' + SUFFIX_MAP[m.val] + '</sub></span>');
-      else parts.push('<span class="ana-root">-' + m.val + '-</span>');
+      else parts.push('<span class="ana-root">-' + m.val + '-<sub>' + (ROOT_MEANINGS[m.val] || "词根") + '</sub></span>');
     }
     el.innerHTML = parts.join(" · ");
     el.style.display = "";

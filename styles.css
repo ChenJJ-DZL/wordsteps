@@ -318,11 +318,16 @@ body {
 /* 词法分解行（融入音标格式） */
 .flip-back .analysis-line {
   font-size: 16px; color: var(--ink-soft); font-family: "Georgia", serif; line-height: 1.4;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 2px 6px;
 }
 .flip-back .analysis-line .ana-pre { color: var(--mid); font-weight: 600; }
 .flip-back .analysis-line .ana-root { color: var(--primary); font-weight: 600; }
 .flip-back .analysis-line .ana-suf { color: var(--good); font-weight: 600; }
-.flip-back .analysis-line sub { font-weight: 400; font-size: 11px; color: var(--ink-faint); }
+.flip-back .analysis-line sub {
+  font-weight: 400; font-size: 11px; color: var(--ink-faint);
+  vertical-align: baseline; position: relative; top: 0.3em; margin-left: 1px;
+}
+.flip-back .zh, .flip-back .analysis-line { line-height: 1.4; padding-top: 0; padding-bottom: 0; }
 .flip-back .en { font-size: 19px; color: var(--ink-soft); line-height: 1.45; }
 .block { margin: 0; }
 .block .tag { display: inline-block; font-size: 13px; color: var(--primary); background: var(--primary-soft); border-radius: 6px; padding: 2px 9px; margin-bottom: 5px; font-weight: 600; }
