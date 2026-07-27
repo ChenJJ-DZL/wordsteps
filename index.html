@@ -9,7 +9,7 @@
   <link rel="icon" href="favicon.ico?v=8" sizes="any" />
   <link rel="icon" href="icon.svg?v=8" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon-512.png" />
-  <link rel="stylesheet" href="styles.css?v=20260727b" />
+  <link rel="stylesheet" href="styles.css?v=20260727c" />
 </head>
 <body>
   <header class="topbar">
@@ -89,8 +89,8 @@
       </button>
       <div class="forget-curve" id="forget-curve">
         <div class="fc-head">
-          <span class="fc-title">遗忘曲线进度</span>
-          <span class="fc-30">30天后约记住 <b id="fc-30">0</b> 词</span>
+          <span class="fc-title">记忆保持率（基于真实遗忘数据）</span>
+          <span class="fc-30">整体保持 <b id="fc-30">-</b>%</span>
         </div>
         <canvas id="fc-canvas"></canvas>
       </div>
@@ -234,9 +234,9 @@
 
   <audio id="player" hidden></audio>
 
-  <script src="books/manifest.js?v=20260727b"></script>
-  <script src="books/en_defs.js?v=20260727b"></script>
-  <script src="app.js?v=20260727b"></script>
+  <script src="books/manifest.js?v=20260727c"></script>
+  <script src="books/en_defs.js?v=20260727c"></script>
+  <script src="app.js?v=20260727c"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {

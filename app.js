@@ -9,7 +9,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260727b";           // 版本号：强制刷新缓存（学习板块改为三档评分 与复习统一）
+  var APP_VER = "20260727c";           // 版本号：强制刷新缓存（遗忘曲线深度融入SRS + 间隔增长基于实际遗忘率动态调整）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
@@ -17,12 +17,13 @@
   var EB = [T_10MIN, T_1D, 2 * DAY, 4 * DAY, 7 * DAY, 15 * DAY, 30 * DAY, 60 * DAY, 120 * DAY];
 
   /* ---------- 状态 / 版本化迁移 ---------- */
-  var SCHEMA_VER = 2;   // schema 版本：管「数据兼容性」，与 APP_VER(缓存强刷) 解耦；v2=自适应间隔(interval 字段替代 intervalIdx)
+  var SCHEMA_VER = 3;   // schema 版本：v3=遗忘率追踪+自适应间隔（接入实际遗忘数据调整间隔倍增系数）
   function defaultSkeleton() {
     return {
       schemaVer: SCHEMA_VER,
       settings: { accent: "us", book: (REGISTRY[0] && REGISTRY[0].id) || "ogden", incremental: false, bookSort: {}, dailyNewLimit: 0 },
-      streak: { lastDate: "", count: 0 }, sessions: [], cache: {}, books: {}
+      streak: { lastDate: "", count: 0 }, sessions: [], cache: {}, books: {},
+      forgetStats: {}   // key=间隔毫秒, value={total,forgotten}  每个间隔段的实际遗忘率追踪
     };
   }
   // 前向兼容：把已存 raw 与默认骨架深合并，新增字段永远有默认值，且不覆盖已有内容
@@ -33,6 +34,7 @@
     if (Array.isArray(raw.sessions)) def.sessions = raw.sessions;
     if (raw.cache) def.cache = raw.cache;
     if (raw.books) def.books = raw.books;
+    if (raw.forgetStats) def.forgetStats = raw.forgetStats;
     def.schemaVer = SCHEMA_VER;
     return def;
   }
@@ -61,7 +63,7 @@
     if (b && b.records && b.records[oldW]) { b.records[newW] = b.records[oldW]; delete b.records[oldW]; }
     return raw;
   }
-  var MIGRATIONS = { 0: migrate_0_to_1 };
+  var MIGRATIONS = { 0: migrate_0_to_1, 2: function(r) { r.forgetStats = r.forgetStats || {}; return r; } };
   function loadState() {
     var def = defaultSkeleton();
     try {
@@ -217,6 +219,24 @@
   function dayStr(ts) { var d = new Date(ts); return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); }
 
   /* ---------- 进度记录（按词库） ---------- */
+  // 遗忘率追踪：间隔段分桶（对数尺度），用于统计 + 调度修正
+  var FORGET_BRACKETS = [T_10MIN, T_4H, T_1D, 2 * DAY, 4 * DAY, 7 * DAY, 15 * DAY, 30 * DAY, 60 * DAY, 120 * DAY];
+  function closestBracket(iv) {
+    for (var i = 0; i < FORGET_BRACKETS.length; i++) { if (iv <= FORGET_BRACKETS[i] * 1.4) return FORGET_BRACKETS[i]; }
+    return FORGET_BRACKETS[FORGET_BRACKETS.length - 1];
+  }
+  function getForgetRate(iv) {
+    var b = closestBracket(iv);
+    var s = state.forgetStats[b];
+    if (!s || s.total < 3) return null;   // 数据不足，不做调整
+    return s.forgotten / s.total;
+  }
+  function recordForget(iv) {
+    var b = closestBracket(iv);
+    if (!state.forgetStats[b]) state.forgetStats[b] = { total: 0, forgotten: 0 };
+    state.forgetStats[b].total++;
+    state.forgetStats[b].forgotten++;
+  }
   // 将旧格式（intervalIdx）懒迁移为新格式（interval 毫秒）
   function migrateRecord(r) {
     if (r.interval != null) return;  // 已是新格式，无需迁移
@@ -241,13 +261,16 @@
     if (r.reps === 0 && rating === "know") {
       iv = T_1D; r.status = "review";
     } else if (rating === "know") {
-      iv = Math.min(Math.round(iv * 2), 120 * DAY);  // 自适应加倍，上限120天
+      var fr = getForgetRate(iv);            // 读取该间隔段的实际遗忘率
+      var growth = fr === null ? 2 : (fr > 0.3 ? 1.5 : (fr < 0.05 ? 2.5 : 2));
+      iv = Math.min(Math.round(iv * growth), 120 * DAY);
       r.status = iv >= 60 * DAY ? "mastered" : "review";
     } else if (rating === "fuzzy") {
-      iv = Math.max(Math.round(iv * 0.5), T_4H);     // 减半，最低4小时
+      iv = Math.max(Math.round(iv * 0.5), T_4H);
       r.status = "review";
     } else {
-      iv = T_10MIN; r.lapses = (r.lapses || 0) + 1;   // 完全遗忘，重置
+      recordForget(r.interval);              // 追踪：在这个间隔段上真正遗忘了
+      iv = T_10MIN; r.lapses = (r.lapses || 0) + 1;
       r.status = "learning";
     }
     r.interval = iv; r.nextReview = now + iv; r.lastReviewed = now; r.reps = (r.reps || 0) + 1; r.lastRating = rating;
@@ -554,49 +577,54 @@
     });
   }
 
-  /* ---------- 遗忘曲线进度 ---------- */
-  var FC_S = 20; // 稳定性常数（天）：控制衰减快慢，美观优先，非严谨模型
+  /* ---------- 遗忘曲线进度（基于实际遗忘率追踪数据） ---------- */
   function forgetCurveData() {
-    var DAY = 86400000;
-    var now = startOfDay(Date.now());
-    var daily = new Array(30).fill(0);
-    state.sessions.forEach(function (s) {
-      var ts = s.ts || Date.now();
-      var age = Math.round((now - startOfDay(ts)) / DAY);
-      if (age >= 0 && age < 30) daily[age] += (s.newCount || 0);
+    var brackets = [T_4H, T_1D, 2 * DAY, 4 * DAY, 7 * DAY, 15 * DAY, 30 * DAY, 60 * DAY, 120 * DAY];
+    var labelDays = [0, 1, 2, 4, 7, 15, 30, 60, 120];  // X轴标签（天）
+    var pts = brackets.map(function (b) {
+      var s = state.forgetStats[b] || { total: 0, forgotten: 0 };
+      return s.total >= 3 ? s.forgotten / s.total : null;
     });
-    var T30 = daily.reduce(function (a, b) { return a + b; }, 0);
-    var xs = [0, 7, 14, 21, 28];
-    var pts = xs.map(function (x) { return T30 * Math.exp(-x / FC_S); });
-    return { T30: T30, xs: xs, pts: pts };
+    // 计算总学习量（用于显示"记忆保持率"）
+    var totalLearned = 0, totalForgotten = 0;
+    for (var b in state.forgetStats) {
+      totalLearned += state.forgetStats[b].total;
+      totalForgotten += state.forgetStats[b].forgotten;
+    }
+    var retentionRate = totalLearned > 0 ? Math.round((1 - totalForgotten / totalLearned) * 100) : 100;
+    return { xs: labelDays, pts: pts, total: totalLearned, retention: retentionRate };
   }
   function drawForgetCurve() {
     var cv = document.getElementById("fc-canvas");
     if (!cv) return;
     var d = forgetCurveData();
     var el30 = document.getElementById("fc-30");
-    if (el30) el30.textContent = Math.round(d.T30 * Math.exp(-28 / FC_S));
+    if (el30) el30.textContent = d.retention + "%";
     var ctx = cv.getContext("2d");
     var dpr = window.devicePixelRatio || 1;
     var cssW = cv.clientWidth || 200, cssH = cv.clientHeight || 128;
     cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cssW, cssH);
-    var padL = 10, padR = 10, padT = 8, padB = 16;
+    var padL = 12, padR = 12, padT = 8, padB = 16;
     var plotW = cssW - padL - padR, plotH = cssH - padT - padB;
-    var maxY = Math.max(d.T30, 1);
-    function X(i) { return padL + plotW * (d.xs[i] / 28); }
-    function Y(v) { return padT + plotH * (1 - v / maxY); }
+    function X(i) { return padL + plotW * d.xs[i] / 120; }
+    function Y(v) { return padT + plotH * (1 - v); }  // v=遗忘率, 0=顶部(100%记忆), 1=底部(0%)
     // 横向网格
     ctx.strokeStyle = "rgba(31,39,51,0.06)"; ctx.lineWidth = 1;
     for (var g = 0; g <= 2; g++) { var gy = padT + plotH * g / 2; ctx.beginPath(); ctx.moveTo(padL, gy); ctx.lineTo(padL + plotW, gy); ctx.stroke(); }
-    if (d.T30 > 0) {
-      // 曲线下渐变填充
+    // 绘制实际遗忘率
+    var validPts = [];
+    for (var i = 0; i < d.pts.length; i++) {
+      if (d.pts[i] !== null) validPts.push(i);
+    }
+    if (validPts.length > 0) {
+      // 曲线渐变填充（记忆保持率 = 1 - 遗忘率）
       ctx.beginPath();
-      ctx.moveTo(X(0), Y(d.pts[0]));
-      for (var i = 1; i < d.pts.length; i++) ctx.lineTo(X(i), Y(d.pts[i]));
-      ctx.lineTo(X(d.pts.length - 1), padT + plotH);
-      ctx.lineTo(X(0), padT + plotH);
+      ctx.moveTo(X(validPts[0]), Y(d.pts[validPts[0]]));
+      for (var j = 1; j < validPts.length; j++) ctx.lineTo(X(validPts[j]), Y(d.pts[validPts[j]]));
+      ctx.lineTo(X(validPts[validPts.length - 1]), padT + plotH);
+      ctx.lineTo(X(validPts[0]), padT + plotH);
       ctx.closePath();
       var grad = ctx.createLinearGradient(0, padT, 0, padT + plotH);
       grad.addColorStop(0, "rgba(79,110,247,0.30)");
@@ -604,21 +632,26 @@
       ctx.fillStyle = grad; ctx.fill();
       // 曲线
       ctx.beginPath();
-      ctx.moveTo(X(0), Y(d.pts[0]));
-      for (i = 1; i < d.pts.length; i++) ctx.lineTo(X(i), Y(d.pts[i]));
+      ctx.moveTo(X(validPts[0]), Y(d.pts[validPts[0]]));
+      for (j = 1; j < validPts.length; j++) ctx.lineTo(X(validPts[j]), Y(d.pts[validPts[j]]));
       ctx.strokeStyle = "#4f6ef7"; ctx.lineWidth = 2.5; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke();
       // 数据点
-      d.pts.forEach(function (v, i) {
-        ctx.beginPath(); ctx.arc(X(i), Y(v), 3, 0, Math.PI * 2);
-        ctx.fillStyle = "#fff"; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = "#4f6ef7"; ctx.stroke();
+      validPts.forEach(function (i) {
+        ctx.beginPath(); ctx.arc(X(i), Y(d.pts[i]), 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = d.pts[i] > 0.3 ? "#e25555" : "#4f6ef7";  // 高遗忘率点标红
+        ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = "#fff"; ctx.stroke();
       });
     } else {
       ctx.fillStyle = "rgba(154,165,180,0.9)"; ctx.font = "12px sans-serif"; ctx.textAlign = "center";
-      ctx.fillText("开始学习后显示遗忘曲线", padL + plotW / 2, padT + plotH / 2);
+      ctx.fillText("学习 + 复习后显示遗忘曲线", padL + plotW / 2, padT + plotH / 2);
     }
     // X 轴天数标签
     ctx.fillStyle = "rgba(154,165,180,0.95)"; ctx.font = "10px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-    d.xs.forEach(function (x, i) { ctx.fillText(x + "天", X(i), padT + plotH + 12); });
+    var showLabels = [0, 2, 7, 15, 30, 60, 120];
+    showLabels.forEach(function (day) {
+      var idx = d.xs.indexOf(day);
+      if (idx >= 0) ctx.fillText(day === 0 ? "今天" : day + "天后", X(idx), padT + plotH + 12);
+    });
   }
 
   // 屏幕旋转 / 尺寸变化时重绘曲线（仅首页激活时）
