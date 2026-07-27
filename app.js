@@ -439,8 +439,8 @@
     node.querySelector(".zh").textContent = bw.zh || "";
     node.querySelector(".core").style.display = bw.core ? "block" : "none";
     node.querySelector(".core-t").textContent = bw.core || "";
-    // 翻面：仅切换 .flipped class（2D opacity 淡入淡出，无 3D 变换、无 will-change）
-    node.addEventListener("click", function () { node.classList.toggle("flipped"); });
+    // 翻面：切换 .flipped class + 自动发音
+    node.addEventListener("click", function () { node.classList.toggle("flipped"); playAudio(bw.w); });
     node.querySelectorAll("[data-speak]").forEach(function (b) {
       b.addEventListener("click", function (e) { e.stopPropagation(); playAudio(bw.w); });
     });
