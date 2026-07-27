@@ -17,13 +17,14 @@
   var EB = [T_10MIN, T_1D, 2 * DAY, 4 * DAY, 7 * DAY, 15 * DAY, 30 * DAY, 60 * DAY, 120 * DAY];
 
   /* ---------- 状态 / 版本化迁移 ---------- */
-  var SCHEMA_VER = 3;   // schema 版本：v3=遗忘率追踪+自适应间隔（接入实际遗忘数据调整间隔倍增系数）
+  var SCHEMA_VER = 4;   // schema 版本：v4=双层遗忘统计(间隔段+自然日分桶)
   function defaultSkeleton() {
     return {
       schemaVer: SCHEMA_VER,
       settings: { accent: "us", book: (REGISTRY[0] && REGISTRY[0].id) || "ogden", incremental: false, bookSort: {}, dailyNewLimit: 0 },
       streak: { lastDate: "", count: 0 }, sessions: [], cache: {}, books: {},
-      forgetStats: {}   // key=间隔毫秒, value={total,forgotten}  每个间隔段的实际遗忘率追踪
+      forgetStats: {},    // 间隔段遗忘统计(SRS引擎用)
+      dayForgetStats: {}  // 自然日遗忘统计(曲线可视化用)
     };
   }
   // 前向兼容：把已存 raw 与默认骨架深合并，新增字段永远有默认值，且不覆盖已有内容
@@ -35,6 +36,7 @@
     if (raw.cache) def.cache = raw.cache;
     if (raw.books) def.books = raw.books;
     if (raw.forgetStats) def.forgetStats = raw.forgetStats;
+    if (raw.dayForgetStats) def.dayForgetStats = raw.dayForgetStats;
     def.schemaVer = SCHEMA_VER;
     return def;
   }
@@ -63,7 +65,7 @@
     if (b && b.records && b.records[oldW]) { b.records[newW] = b.records[oldW]; delete b.records[oldW]; }
     return raw;
   }
-  var MIGRATIONS = { 0: migrate_0_to_1, 2: function(r) { r.forgetStats = r.forgetStats || {}; return r; } };
+  var MIGRATIONS = { 0: migrate_0_to_1, 2: function(r) { r.forgetStats = r.forgetStats || {}; return r; }, 3: function(r) { r.dayForgetStats = r.dayForgetStats || {}; return r; } };
   function loadState() {
     var def = defaultSkeleton();
     try {
@@ -219,7 +221,9 @@
   function dayStr(ts) { var d = new Date(ts); return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); }
 
   /* ---------- 进度记录（按词库） ---------- */
-  // 遗忘率追踪：间隔段分桶（对数尺度），用于统计 + 调度修正
+  // 遗忘率双层追踪
+  //   forgetStats: 按间隔段分桶 → SRS引擎动态调整增长系数（同一天内多次遗忘各算一次）
+  //   dayForgetStats: 按首次学习后的自然日分桶 → 遗忘曲线可视化（同一天只算1次）
   var FORGET_BRACKETS = [T_10MIN, T_4H, T_1D, 2 * DAY, 4 * DAY, 7 * DAY, 15 * DAY, 30 * DAY, 60 * DAY, 120 * DAY];
   function closestBracket(iv) {
     for (var i = 0; i < FORGET_BRACKETS.length; i++) { if (iv <= FORGET_BRACKETS[i] * 1.4) return FORGET_BRACKETS[i]; }
@@ -228,14 +232,22 @@
   function getForgetRate(iv) {
     var b = closestBracket(iv);
     var s = state.forgetStats[b];
-    if (!s || s.total < 3) return null;   // 数据不足，不做调整
+    if (!s || s.total < 3) return null;
     return s.forgotten / s.total;
   }
-  function recordForget(iv) {
-    var b = closestBracket(iv);
+  function recordForget(r) {
+    // SRS引擎用：按间隔段分桶
+    var b = closestBracket(r.interval);
     if (!state.forgetStats[b]) state.forgetStats[b] = { total: 0, forgotten: 0 };
     state.forgetStats[b].total++;
     state.forgetStats[b].forgotten++;
+    // 遗忘曲线用：按首次学习后的自然日分桶
+    var days = Math.floor((Date.now() - r.firstLearned) / DAY);
+    var dayKey = days === 0 ? "当天" : days + "天后";
+    if (!state.dayForgetStats) state.dayForgetStats = {};
+    if (!state.dayForgetStats[dayKey]) state.dayForgetStats[dayKey] = { total: 0, forgotten: 0 };
+    state.dayForgetStats[dayKey].total++;
+    state.dayForgetStats[dayKey].forgotten++;
   }
   // 将旧格式（intervalIdx）懒迁移为新格式（interval 毫秒）
   function migrateRecord(r) {
@@ -269,7 +281,7 @@
       iv = Math.max(Math.round(iv * 0.5), T_4H);
       r.status = "review";
     } else {
-      recordForget(r.interval);              // 追踪：在这个间隔段上真正遗忘了
+      recordForget(r);                        // 追踪：记录遗忘事件（双层：间隔段+自然日）
       iv = T_10MIN; r.lapses = (r.lapses || 0) + 1;
       r.status = "learning";
     }
@@ -577,19 +589,19 @@
     });
   }
 
-  /* ---------- 遗忘曲线进度（基于实际遗忘率追踪数据） ---------- */
+  /* ---------- 遗忘曲线进度（基于自然日遗忘数据） ---------- */
   function forgetCurveData() {
-    var brackets = [T_4H, T_1D, 2 * DAY, 4 * DAY, 7 * DAY, 15 * DAY, 30 * DAY, 60 * DAY, 120 * DAY];
-    var labelDays = [0, 1, 2, 4, 7, 15, 30, 60, 120];  // X轴标签（天）
-    var pts = brackets.map(function (b) {
-      var s = state.forgetStats[b] || { total: 0, forgotten: 0 };
+    var dayKeys = ["当天", "1天后", "2天后", "4天后", "7天后", "15天后", "30天后", "60天后", "120天后"];
+    var labelDays = [0, 1, 2, 4, 7, 15, 30, 60, 120];
+    var dfs = state.dayForgetStats || {};
+    var pts = dayKeys.map(function (k) {
+      var s = dfs[k] || { total: 0, forgotten: 0 };
       return s.total >= 3 ? s.forgotten / s.total : null;
     });
-    // 计算总学习量（用于显示"记忆保持率"）
     var totalLearned = 0, totalForgotten = 0;
-    for (var b in state.forgetStats) {
-      totalLearned += state.forgetStats[b].total;
-      totalForgotten += state.forgetStats[b].forgotten;
+    for (var k in dfs) {
+      totalLearned += dfs[k].total;
+      totalForgotten += dfs[k].forgotten;
     }
     var retentionRate = totalLearned > 0 ? Math.round((1 - totalForgotten / totalLearned) * 100) : 100;
     return { xs: labelDays, pts: pts, total: totalLearned, retention: retentionRate };
