@@ -9,7 +9,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260728b";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
+  var APP_VER = "20260728c";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
@@ -349,7 +349,11 @@
         en: local.en || "", ex: "", syn: [], ant: [],
         audio_uk: local.audio_uk || "", audio_us: local.audio_us || ""
       };
-      state.cache[word] = c; cb(c); return;
+      state.cache[word] = c; cb(c);
+      // 静默预加载音频
+      if (c.audio_us) preloadAudioUrl(c.audio_us);
+      if (c.audio_uk && c.audio_uk !== c.audio_us) preloadAudioUrl(c.audio_uk);
+      return;
     }
     if (!ONLINE_ENRICH) {     // 离线模式：直接返回本地数据占位，绝不发外网请求（无 404 / 无限流）
       var off = { loaded: true, error: false, en: "", ex: "", syn: [], ant: [], audio_uk: "", audio_us: "" };
@@ -408,28 +412,70 @@
   }
 
   /* ---------- 发音（真实音频优先，TTS 兜底） ---------- */
-  var player = document.getElementById("player");
+  var player = document.getElementById("player"), audioPreCache = {};
+  // 静默预加载音频到浏览器缓存，消除播放延迟
+  function preloadAudioUrl(url) {
+    if (!url || audioPreCache[url]) return;
+    try {
+      var a = new Audio(); a.preload = "auto"; a.src = url;
+      audioPreCache[url] = a;  // 保持引用防止 GC
+      a.load();                 // 触发下载
+    } catch (e) {}
+  }
   function playAudio(word) {
     var c = state.cache[word];
     var url = c ? (state.settings.accent === "uk" ? c.audio_uk : c.audio_us) : "";
-    if (url) { try { player.src = url; player.play().catch(function () {}); return; } catch (e) {} }
+    if (url) {
+      // 命中预缓存 → 零延迟播放
+      if (audioPreCache[url]) { player.srcObject = null; player.src = url; player.play().catch(function () {}); return; }
+      try { player.src = url; player.play().catch(function () {}); return; } catch (e) {}
+    }
     speak(word);
+  }
+  // TTS 兜底：选最佳英文语音（Google > Microsoft > Apple > 其他英文本地语音）
+  function bestVoice() {
+    if (!("speechSynthesis" in window)) return null;
+    var list = window.speechSynthesis.getVoices();
+    if (!list.length) return null;
+    var lang = state.settings.accent === "uk" ? "en-GB" : "en-US";
+    var tier1 = [], tier2 = [], tier3 = [];
+    for (var i = 0; i < list.length; i++) {
+      var v = list[i], l = v.lang || "";
+      if (l.indexOf(lang) !== 0) continue;
+      if (/google/i.test(v.name)) tier1.push(v);
+      else if (/microsoft|zira|david|mark/i.test(v.name)) tier2.push(v);
+      else tier3.push(v);
+    }
+    var pool = tier1.length ? tier1 : (tier2.length ? tier2 : tier3);
+    if (pool.length) {
+      // 选本地语音（避免网络合成）
+      for (var j = 0; j < pool.length; j++) { if (pool[j].localService) return pool[j]; }
+      return pool[0];
+    }
+    // 放宽到任意英文
+    for (var k = 0; k < list.length; k++) { if (list[k].lang && list[k].lang.indexOf("en") === 0) return list[k]; }
+    return null;
   }
   function speak(word) {
     if (!("speechSynthesis" in window) || !word) return;
     try {
       window.speechSynthesis.cancel();
       var u = new SpeechSynthesisUtterance(word);
-      u.lang = state.settings.accent === "uk" ? "en-GB" : "en-US"; u.rate = 0.92;
+      u.lang = state.settings.accent === "uk" ? "en-GB" : "en-US";
+      u.rate = 0.92; u.voice = bestVoice();
       window.speechSynthesis.speak(u);
     } catch (e) {}
   }
 
-  // 浏览器自动播放策略：首次用户手势后整页可自动播放。这里在首次交互时预热一次。
+  // 浏览器自动播放策略：首次用户手势后预热 TTS 引擎 + 加载语音列表
   var audioPrimed = false;
   function primeAudio() {
     if (audioPrimed) return; audioPrimed = true;
-    try { window.speechSynthesis.getVoices(); } catch (e) {}
+    try {
+      var s = window.speechSynthesis;
+      s.getVoices();  // 触发语音列表加载
+      s.onvoiceschanged = function () { s.getVoices(); };  // Chrome 异步加载需监听
+    } catch (e) {}
   }
   document.addEventListener("pointerdown", primeAudio, { once: true });
 
@@ -461,10 +507,16 @@
     fillBack(node, bw);
     return node;
   }
-  // 渲染卡片时：确保富化 -> 填充背面 -> 自动朗读（满足「展示时 / 翻页时自动播放」）
+  // 渲染卡片时：确保富化 -> 填充背面 -> 预加载发音 -> 自动朗读
   function prepareCard(bw, node) {
     node._enriched = true;
-    enrich(bw.w, function () { fillBack(node, bw); playAudio(bw.w); }, true);
+    enrich(bw.w, function (c) {
+      fillBack(node, bw);
+      // 预加载真实音频到浏览器缓存，后续点击播放零延迟
+      if (c.audio_us) preloadAudioUrl(c.audio_us);
+      if (c.audio_uk && c.audio_uk !== c.audio_us) preloadAudioUrl(c.audio_uk);
+      playAudio(bw.w);
+    }, true);
   }
   function fillBack(node, bw) {
     var word = node._word, c = state.cache[word];
