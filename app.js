@@ -9,7 +9,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260728c";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
+  var APP_VER = "20260728d";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
@@ -411,24 +411,80 @@
     return c;
   }
 
-  /* ---------- 发音（真实音频优先，TTS 兜底） ---------- */
-  var player = document.getElementById("player"), audioPreCache = {};
-  // 静默预加载音频到浏览器缓存，消除播放延迟
+  /* ---------- 发音（真实音频优先，TTS 兜底，IndexedDB 持久化离线可用） ---------- */
+  var player = document.getElementById("player");
+  // IndexedDB 音频持久化：key=url, value=blob。二次打开后播放零延迟且完全离线。
+  var IDB_AUDIO_NAME = "wordsteps-audio", IDB_AUDIO_VER = 1, audioIdb = null;
+  function idbAudioReady(cb) {
+    if (audioIdb) { cb(audioIdb); return; }
+    if (!("indexedDB" in window)) { cb(null); return; }
+    var req = indexedDB.open(IDB_AUDIO_NAME, IDB_AUDIO_VER);
+    req.onupgradeneeded = function (e) { var db = e.target.result; if (!db.objectStoreNames.contains("blobs")) db.createObjectStore("blobs"); };
+    req.onsuccess = function (e) { audioIdb = e.target.result; cb(audioIdb); };
+    req.onerror = function () { cb(null); };
+  }
+  function idbAudioGet(url, cb) {
+    idbAudioReady(function (db) {
+      if (!db) { cb(null); return; }
+      try {
+        var tx = db.transaction("blobs", "readonly"), store = tx.objectStore("blobs");
+        var req = store.get(url);
+        req.onsuccess = function () { cb(req.result ? req.result.blob : null); };
+        req.onerror = function () { cb(null); };
+      } catch (e) { cb(null); }
+    });
+  }
+  function idbAudioSet(url, blob) {
+    idbAudioReady(function (db) {
+      if (!db) return;
+      try { var tx = db.transaction("blobs", "readwrite"); tx.objectStore("blobs").put({url:url, blob:blob}); } catch (e) {}
+    });
+  }
+  // 静默预加载：fetch mp3 → 写入 IndexedDB，供后续离线播放
   function preloadAudioUrl(url) {
-    if (!url || audioPreCache[url]) return;
+    if (!url) return;
+    idbAudioGet(url, function (blob) { if (blob) return; fetchAudio(url, null); });
+  }
+  function fetchAudio(url, cb) {
     try {
-      var a = new Audio(); a.preload = "auto"; a.src = url;
-      audioPreCache[url] = a;  // 保持引用防止 GC
-      a.load();                 // 触发下载
-    } catch (e) {}
+      fetch(url, { cache: "force-cache" }).then(function (r) {
+        if (!r.ok) { if (cb) cb(null); return; }
+        return r.blob();
+      }).then(function (blob) {
+        if (!blob) { if (cb) cb(null); return; }
+        idbAudioSet(url, blob);      // 持久化到 IndexedDB
+        if (cb) cb(blob);
+      }).catch(function () { if (cb) cb(null); });
+    } catch (e) { if (cb) cb(null); }
   }
   function playAudio(word) {
     var c = state.cache[word];
     var url = c ? (state.settings.accent === "uk" ? c.audio_uk : c.audio_us) : "";
     if (url) {
-      // 命中预缓存 → 零延迟播放
-      if (audioPreCache[url]) { player.srcObject = null; player.src = url; player.play().catch(function () {}); return; }
-      try { player.src = url; player.play().catch(function () {}); return; } catch (e) {}
+      // 1) 优先从 IndexedDB 读 blob（离线可用，零延迟）
+      idbAudioGet(url, function (blob) {
+        if (blob) {
+          try {
+            var prev = player._blobUrl;
+            player.srcObject = null; player.src = (player._blobUrl = URL.createObjectURL(blob));
+            if (prev) URL.revokeObjectURL(prev);
+            player.play().catch(function () {});
+          } catch (e) {}
+          return;
+        }
+        // 2) 回退到 fetch 并写入 IDB（首次在线）
+        fetchAudio(url, function (blob2) {
+          if (blob2) {
+            try {
+              var prev2 = player._blobUrl;
+              player.srcObject = null; player.src = (player._blobUrl = URL.createObjectURL(blob2));
+              if (prev2) URL.revokeObjectURL(prev2);
+              player.play().catch(function () {});
+            } catch (e) {}
+          } else { speak(word); }
+        });
+      });
+      return;
     }
     speak(word);
   }
