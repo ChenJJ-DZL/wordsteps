@@ -9,7 +9,7 @@
   <link rel="icon" href="favicon.ico?v=8" sizes="any" />
   <link rel="icon" href="icon.svg?v=8" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon-512.png" />
-  <link rel="stylesheet" href="styles.css?v=20260728d" />
+  <link rel="stylesheet" href="styles.css?v=20260729a" />
 </head>
 <body>
   <header class="topbar">
@@ -179,6 +179,12 @@
       <ul id="learned-list" class="learned-list"></ul>
     </section>
 
+    <section class="panel danger-zone" id="restore-panel" style="display:none">
+      <p class="hint" style="margin-bottom:6px">检测到旧备份数据，可尝试恢复：</p>
+      <button class="btn-ghost" id="btn-restore">恢复最近备份</button>
+      <p class="hint">恢复将替换当前进度，请确认后操作。</p>
+    </section>
+
     <section class="panel danger-zone">
       <button class="btn-ghost danger" id="btn-reset">清空当前单词本进度</button>
       <p class="hint">仅清除本地进度，词库不受影响。</p>
@@ -227,9 +233,9 @@
 
   <audio id="player" hidden></audio>
 
-  <script src="books/manifest.js?v=20260728d"></script>
-  <script src="books/en_defs.js?v=20260728d"></script>
-  <script src="app.js?v=20260728d"></script>
+  <script src="books/manifest.js?v=20260729a"></script>
+  <script src="books/en_defs.js?v=20260729a"></script>
+  <script src="app.js?v=20260729a"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {

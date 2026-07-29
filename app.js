@@ -9,7 +9,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260728d";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
+  var APP_VER = "20260729a";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
@@ -65,27 +65,76 @@
     if (b && b.records && b.records[oldW]) { b.records[newW] = b.records[oldW]; delete b.records[oldW]; }
     return raw;
   }
-  var MIGRATIONS = { 0: migrate_0_to_1, 2: function(r) { r.forgetStats = r.forgetStats || {}; return r; }, 3: function(r) { r.dayForgetStats = r.dayForgetStats || {}; return r; } };
+  var MIGRATIONS = {
+    0: migrate_0_to_1,
+    1: function(r) { return r; },                                           // v1→v2 占位：数据格式正确，无需转换
+    2: function(r) { r.forgetStats = r.forgetStats || {}; return r; },
+    3: function(r) { r.dayForgetStats = r.dayForgetStats || {}; return r; }
+  };
+  var _loadedOk = false;   // 标记本次加载是否成功（用于判断是否需要显示恢复提示）
   function loadState() {
     var def = defaultSkeleton();
     try {
       var r = localStorage.getItem(STORE_KEY);
       if (!r) return def;
       var raw = JSON.parse(r);
+      // 每次启动自动备份一份（只保留最近 3 份），防止后续代码崩溃或误写导致数据不可逆丢失
+      maybeAutoBackup(r);
       var curVer = raw.schemaVer || 0;
-      // 升级前先备份一份，防迁移失败可回滚（仅保留最近 3 份，避免无限增长）
-      if (curVer < SCHEMA_VER) { try { localStorage.setItem(STORE_KEY + "_bak_" + Date.now(), r); pruneBackups(); } catch (e) {} }
       while (curVer < SCHEMA_VER) {
         var fn = MIGRATIONS[curVer];
-        if (!fn) break;                       // 没有对应迁移函数则停止，避免死循环
+        if (!fn) break;
         raw = fn(raw) || raw;
         curVer++;
       }
+      _loadedOk = true;
       return deepMergeSkeleton(def, raw);
     } catch (e) {
-      console.warn("loadState 迁移失败，使用默认骨架：", e);
-      return def;
+      console.warn("loadState 解析/迁移失败，尝试从自动备份恢复…", e);
+      return tryRestoreFromBackup(def);
     }
+  }
+  // 自动备份：每 30 分钟写一份（防频繁写入），保留最近 3 份
+  var _lastAutoBackup = 0;
+  function maybeAutoBackup(rawJson) {
+    var now = Date.now();
+    if (now - _lastAutoBackup < 1800000) return;  // 30 分钟内不重复
+    _lastAutoBackup = now;
+    try {
+      localStorage.setItem(STORE_KEY + "_bak_" + now, rawJson);
+      pruneBackups();
+    } catch (e) {}
+  }
+  function tryRestoreFromBackup(def) {
+    try {
+      var keys = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf(STORE_KEY + "_bak_") === 0) keys.push(k);
+      }
+      keys.sort().reverse();  // 最新的优先
+      for (var j = 0; j < keys.length; j++) {
+        var bk = localStorage.getItem(keys[j]);
+        if (!bk) continue;
+        try {
+          var raw = JSON.parse(bk);
+          var curVer = raw.schemaVer || 0;
+          while (curVer < SCHEMA_VER) {
+            var fn = MIGRATIONS[curVer];
+            if (!fn) break;
+            raw = fn(raw) || raw;
+            curVer++;
+          }
+          // 恢复成功后重新保存一份
+          var restored = deepMergeSkeleton(def, raw);
+          localStorage.setItem(STORE_KEY, JSON.stringify(restored));
+          console.warn("loadState 已从备份恢复，备份时间戳：", keys[j].replace(STORE_KEY + "_bak_", ""));
+          _loadedOk = true;
+          return restored;
+        } catch (e2) { continue; }
+      }
+    } catch (e) {}
+    return def;
   }
   function pruneBackups() {
     try {
@@ -98,7 +147,14 @@
       while (keys.length > 3) localStorage.removeItem(keys.shift());
     } catch (e) {}
   }
-  function saveState() { state.schemaVer = SCHEMA_VER; try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {} }
+  function saveState() {
+    state.schemaVer = SCHEMA_VER;
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify(state));
+    } catch (e) {
+      console.error("saveState 保存失败（可能存储空间满）：", e);
+    }
+  }
   function bookRecs(id) { if (!state.books[id]) state.books[id] = { records: {} }; return state.books[id].records; }
 
   // 必须在 MIGRATIONS 赋值完成后调用
@@ -1084,6 +1140,38 @@ function fillAnalysis(node, bw) {
       state.books[curBook()] = { records: {} }; saveState(); renderHistory(); renderHome();
     }
   });
+  // 恢复备��按钮：仅在检测到备份数据且当前进度为空时显示
+  (function checkRestorePanel() {
+    try {
+      var keys = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf(STORE_KEY + "_bak_") === 0) keys.push(k);
+      }
+      if (keys.length) {
+        document.getElementById("restore-panel").style.display = "";
+        document.getElementById("btn-restore").addEventListener("click", function () {
+          keys.sort().reverse();
+          var latest = localStorage.getItem(keys[0]);
+          if (!latest || !confirm("确定从备份恢复吗？当前进度将被替换。")) return;
+          try {
+            var raw = JSON.parse(latest);
+            var curVer = raw.schemaVer || 0;
+            while (curVer < SCHEMA_VER) {
+              var fn = MIGRATIONS[curVer];
+              if (!fn) break;
+              raw = fn(raw) || raw;
+              curVer++;
+            }
+            var restored = deepMergeSkeleton(defaultSkeleton(), raw);
+            localStorage.setItem(STORE_KEY, JSON.stringify(restored));
+            alert("已恢复。请刷新页面查看。");
+            location.reload();
+          } catch (e) { alert("备份数据损坏，无法恢复。"); }
+        });
+      }
+    } catch (e) {}
+  })();
 
   /* ---------- 学习会话 ---------- */
   var curSession = null;
