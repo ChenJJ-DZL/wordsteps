@@ -9,7 +9,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260729b";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
+  var APP_VER = "20260729c";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
@@ -253,20 +253,36 @@
     if (mode === "alpha") {
       return words.slice().sort(function (a, b) { return (a.w || "").localeCompare(b.w || ""); });
     }
+    // round-robin 交错聚类 + 随机化：族内单词随机打乱，族之间随机排列（每 5 族一批轮转）
     var g = {}, i, k;
     words.forEach(function (w) {
       var key = w.root || ("_" + (w.w || ""));
       (g[key] = g[key] || []).push(w);
     });
-    var ks = Object.keys(g).sort(function (a, b) { return g[b].length - g[a].length; });
-    var out = [], idx = 0, any = true;
-    while (any) {
-      any = false;
-      for (i = 0; i < ks.length; i++) {
-        var arr = g[ks[i]];
-        if (arr.length > idx) { out.push(arr[idx]); any = true; }
+    // Fisher-Yates shuffle
+    function shuffle(arr) {
+      for (var j = arr.length - 1; j > 0; j--) {
+        var r = Math.floor(Math.random() * (j + 1));
+        var t = arr[j]; arr[j] = arr[r]; arr[r] = t;
       }
-      idx++;
+    }
+    // 族内打乱
+    var ks = Object.keys(g);
+    for (i = 0; i < ks.length; i++) shuffle(g[ks[i]]);
+    // 族间随机排列
+    shuffle(ks);
+    // 每 5 个族一批交错输出（防过快跳出同一族，也防同族连续出现）
+    var out = [], batchSize = 5;
+    for (var start = 0; start < ks.length; start += batchSize) {
+      var batch = ks.slice(start, start + batchSize), idx = 0, any = true;
+      while (any) {
+        any = false;
+        for (i = 0; i < batch.length; i++) {
+          var arr = g[batch[i]];
+          if (arr.length > idx) { out.push(arr[idx]); any = true; }
+        }
+        idx++;
+      }
     }
     return out;
   }
@@ -361,12 +377,14 @@
   function dueWords(id) {
     var now = Date.now(), eod = endOfDay(now), out = [], words = curWords(), rs = bookRecs(id);
     for (var i = 0; i < words.length; i++) { var r = rs[words[i].w]; if (r && r.nextReview <= eod) { migrateRecord(r); out.push(words[i]); } }
-    // 按 overdue 程度 + lapses 加权排序：越 overdue、越易忘的词越优先
+    // 按 overdue 程度 + lapses 加权排序：越 overdue、越易忘的词越优先，+微小随机扰动打破固定顺序
     out.sort(function (a, b) {
       var ra = rs[a.w], rb = rs[b.w];
       var ia = Math.max(ra.interval || T_1D, T_1D), ib = Math.max(rb.interval || T_1D, T_1D);
       var oa = (now - ra.nextReview) / ia, ob = (now - rb.nextReview) / ib;
       oa *= 1 + (ra.lapses || 0) * 0.2; ob *= 1 + (rb.lapses || 0) * 0.2;
+      // ±5% 随机抖动，打破同一批 overdue 词之间的固定排序
+      oa *= 0.95 + Math.random() * 0.1; ob *= 0.95 + Math.random() * 0.1;
       return ob - oa;
     });
     return out;
