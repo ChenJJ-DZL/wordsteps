@@ -7,7 +7,7 @@
   /* ---------- Service Worker 更新检测（仅新版触发，点稍后 2h 内不再弹） ---------- */
   // 版本更新日志（每次发布时追加一条，新版本在顶部）
   var CHANGELOG = [
-    { ver: "20260730a", note: "每次启动弹更新横幅+详情按钮 + 修复启动白屏与桌面图标消失" },
+    { ver: "20260730b", note: "每次启动弹更新横幅+详情按钮 + 修复启动白屏与桌面图标消失" },
     { ver: "20260729e", note: "学习排序改为同族组块(同根词连续出现便于对比) + favicon.ico 补齐" },
     { ver: "20260729d", note: "PWA桌面应用自动更新提示(顶部横幅一键刷新)" },
     { ver: "20260729c", note: "打破固定背诵顺序：族内打乱+族间随机+复习±5%扰动" },
@@ -88,7 +88,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260730a";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
+  var APP_VER = "20260730b";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
@@ -1034,29 +1034,30 @@ function fillAnalysis(node, bw) {
     });
   }
 
-  /* ---------- 遗忘曲线进度（基于自然日遗忘数据） ---------- */
+  /* ---------- 记忆曲线（基于自然日遗忘数据，7天一档） ---------- */
   function forgetCurveData() {
-    var dayKeys = ["当天", "1天后", "2天后", "4天后", "7天后", "15天后", "30天后", "60天后", "120天后"];
-    var labelDays = [0, 1, 2, 4, 7, 15, 30, 60, 120];
     var dfs = state.dayForgetStats || {};
-    var pts = dayKeys.map(function (k) {
-      var s = dfs[k] || { total: 0, forgotten: 0 };
+    // 从 dayForgetStats 中按天数桶查遗忘率
+    function frAt(day) {
+      var key = day === 0 ? "当天" : day + "天后";
+      var s = dfs[key] || { total: 0, forgotten: 0 };
       return s.total >= 3 ? s.forgotten / s.total : null;
-    });
-    var totalLearned = 0, totalForgotten = 0;
-    for (var k in dfs) {
-      totalLearned += dfs[k].total;
-      totalForgotten += dfs[k].forgotten;
     }
-    var retentionRate = totalLearned > 0 ? Math.round((1 - totalForgotten / totalLearned) * 100) : 100;
-    return { xs: labelDays, pts: pts, total: totalLearned, retention: retentionRate };
+    // X 轴：0/7/14/21/28天，缺失的点用线性插值
+    var xs = [0, 7, 14, 21, 28];
+    var pts = xs.map(function (d) { return frAt(d); });
+    // 统计总遗忘与第30天保持率
+    var totalLearned = 0, totalForgotten = 0, f30 = frAt(30);
+    for (var k in dfs) { totalLearned += dfs[k].total; totalForgotten += dfs[k].forgotten; }
+    var est30 = f30 !== null ? Math.round((1 - f30) * 100) : (totalLearned > 0 ? Math.round((1 - totalForgotten / totalLearned) * 100) : 100);
+    return { xs: xs, pts: pts, est30: est30 };
   }
   function drawForgetCurve() {
     var cv = document.getElementById("fc-canvas");
     if (!cv) return;
     var d = forgetCurveData();
     var el30 = document.getElementById("fc-30");
-    if (el30) el30.textContent = d.retention + "%";
+    if (el30) el30.textContent = d.est30;
     var ctx = cv.getContext("2d");
     var dpr = window.devicePixelRatio || 1;
     var cssW = cv.clientWidth || 200, cssH = cv.clientHeight || 128;
@@ -1065,18 +1066,16 @@ function fillAnalysis(node, bw) {
     ctx.clearRect(0, 0, cssW, cssH);
     var padL = 12, padR = 12, padT = 8, padB = 16;
     var plotW = cssW - padL - padR, plotH = cssH - padT - padB;
-    function X(i) { return padL + plotW * d.xs[i] / 120; }
-    function Y(v) { return padT + plotH * (1 - v); }  // v=遗忘率, 0=顶部(100%记忆), 1=底部(0%)
-    // 横向网格
+    function X(i) { return padL + plotW * d.xs[i] / 28; }
+    function Y(v) { return padT + plotH * (1 - v); }
+    // 横向网格（0%/50%/100%记忆保持率）
     ctx.strokeStyle = "rgba(31,39,51,0.06)"; ctx.lineWidth = 1;
     for (var g = 0; g <= 2; g++) { var gy = padT + plotH * g / 2; ctx.beginPath(); ctx.moveTo(padL, gy); ctx.lineTo(padL + plotW, gy); ctx.stroke(); }
-    // 绘制实际遗忘率
+    // 有效数据点
     var validPts = [];
-    for (var i = 0; i < d.pts.length; i++) {
-      if (d.pts[i] !== null) validPts.push(i);
-    }
-    if (validPts.length > 0) {
-      // 曲线渐变填充（记忆保持率 = 1 - 遗忘率）
+    for (var i = 0; i < d.pts.length; i++) { if (d.pts[i] !== null) validPts.push(i); }
+    if (validPts.length >= 2) {
+      // 曲线渐变填充
       ctx.beginPath();
       ctx.moveTo(X(validPts[0]), Y(d.pts[validPts[0]]));
       for (var j = 1; j < validPts.length; j++) ctx.lineTo(X(validPts[j]), Y(d.pts[validPts[j]]));
@@ -1095,19 +1094,17 @@ function fillAnalysis(node, bw) {
       // 数据点
       validPts.forEach(function (i) {
         ctx.beginPath(); ctx.arc(X(i), Y(d.pts[i]), 3.5, 0, Math.PI * 2);
-        ctx.fillStyle = d.pts[i] > 0.3 ? "#e25555" : "#4f6ef7";  // 高遗忘率点标红
+        ctx.fillStyle = d.pts[i] > 0.3 ? "#e25555" : "#4f6ef7";
         ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = "#fff"; ctx.stroke();
       });
     } else {
       ctx.fillStyle = "rgba(154,165,180,0.9)"; ctx.font = "12px sans-serif"; ctx.textAlign = "center";
-      ctx.fillText("学习 + 复习后显示遗忘曲线", padL + plotW / 2, padT + plotH / 2);
+      ctx.fillText("学习 + 复习后显示记忆曲线", padL + plotW / 2, padT + plotH / 2);
     }
-    // X 轴天数标签
+    // X 轴标签：0/7/14/21/28天
     ctx.fillStyle = "rgba(154,165,180,0.95)"; ctx.font = "10px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-    var showLabels = [0, 2, 7, 15, 30, 60, 120];
-    showLabels.forEach(function (day) {
-      var idx = d.xs.indexOf(day);
-      if (idx >= 0) ctx.fillText(day === 0 ? "今天" : day + "天后", X(idx), padT + plotH + 12);
+    d.xs.forEach(function (day, idx) {
+      ctx.fillText(day === 0 ? "今天" : day + "天", X(idx), padT + plotH + 12);
     });
   }
 

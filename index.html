@@ -9,11 +9,11 @@
   <link rel="icon" href="favicon.ico?v=32" sizes="any" />
   <link rel="icon" href="icon.svg?v=32" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon-512.png" />
-  <link rel="stylesheet" href="styles.css?v=20260730a" />
+  <link rel="stylesheet" href="styles.css?v=20260730b" />
 </head>
 <body>
   <div id="update-banner" style="display:none">
-    <span>新版本已发布 (v20260730a)</span>
+    <span>新版本已发布 (v20260730b)</span>
     <button id="update-reload">立即更新</button>
     <button id="update-detail">详情</button>
     <button id="update-dismiss">稍后</button>
@@ -97,7 +97,7 @@
       <div class="forget-curve" id="forget-curve">
         <div class="fc-head">
           <span class="fc-title">记忆保持率（基于真实遗忘数据）</span>
-          <span class="fc-30">整体保持 <b id="fc-30">-</b>%</span>
+          <span class="fc-30">预计30天后可记住 <b id="fc-30">-</b> 个单词</span>
         </div>
         <canvas id="fc-canvas"></canvas>
       </div>
@@ -240,9 +240,9 @@
 
   <audio id="player" hidden></audio>
 
-  <script src="books/manifest.js?v=20260730a"></script>
-  <script src="books/en_defs.js?v=20260730a"></script>
-  <script src="app.js?v=20260730a"></script>
+  <script src="books/manifest.js?v=20260730b"></script>
+  <script src="books/en_defs.js?v=20260730b"></script>
+  <script src="app.js?v=20260730b"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
