@@ -6,7 +6,7 @@
   
   /* ---------- Service Worker 更新检测（仅新版弹窗，点稍后 2h 抑制） ---------- */
   var CHANGELOG = [
-    { ver: "20260730i", note: "记忆曲线恢复7天一档 + 更新弹窗仅新版触发" },
+    { ver: "20260730j", note: "记忆曲线恢复7天一档 + 更新弹窗仅新版触发" },
     { ver: "20260729e", note: "学习排序改为同族组块(同根词连续出现便于对比) + favicon.ico 补齐" },
     { ver: "20260729d", note: "PWA桌面应用自动更新提示(顶部横幅一键刷新)" },
     { ver: "20260729c", note: "打破固定背诵顺序：族内打乱+族间随机+复习±5%扰动" },
@@ -18,12 +18,12 @@
     { ver: "20260728a", note: "词法分解行(前缀+词根+后缀均含中文释义) + 卡片背面版面压缩" }
   ];
   function showUpdateBanner(swVer) {
-    // 抑制检查：点稍后 2h 内不弹；同一 SW 版本不重复弹
+    // 抑制：点稍后 2h 内不弹
     try {
       var dismissTs = parseInt(localStorage.getItem("__update_dismissed") || "0", 10);
       if (dismissTs && Date.now() - dismissTs < 2 * 3600 * 1000) return;
-      if (swVer && localStorage.getItem("__sw_ver_seen") === swVer) return;
     } catch (e) {}
+    var b = document.getElementById("update-banner");
     var b = document.getElementById("update-banner");
     if (!b) return;
     b.style.display = "";
@@ -33,10 +33,7 @@
     var detailEl = document.getElementById("update-details");
     if (reloadBtn) reloadBtn.addEventListener("click", function () {
       b.style.display = "none";
-      try {
-        var _sv = (swVer || ""); localStorage.setItem("__sw_ver_seen", _sv);
-        localStorage.removeItem("__update_dismissed");
-      } catch (e) {}
+      try { localStorage.removeItem("__update_dismissed"); } catch (e) {}
       if (navigator.serviceWorker && navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage({ type: 'skip-waiting' });
       }
@@ -112,7 +109,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260730i";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
+  var APP_VER = "20260730j";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
@@ -255,7 +252,16 @@
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify(state));
     } catch (e) {
-      console.error("saveState 保存失败（可能存储空间满）：", e);
+      console.error("saveState 失败（存储空间满？）：", e);
+      // 显示一次用户可见的提示
+      if (!document.getElementById("quota-warn")) {
+        var w = document.createElement("div");
+        w.id = "quota-warn";
+        w.style.cssText = "position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#e25555;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;z-index:200";
+        w.textContent = "存储空间不足，学习记录可能无法保存";
+        document.body.appendChild(w);
+        setTimeout(function () { w.remove(); }, 5000);
+      }
     }
   }
   function bookRecs(id) { if (!state.books[id]) state.books[id] = { records: {} }; return state.books[id].records; }
@@ -585,6 +591,7 @@
 
   /* ---------- 发音（真实音频优先，TTS 兜底，IndexedDB 持久化离线可用） ---------- */
   var player = document.getElementById("player");
+  if (!player) player = document.createElement("audio");  // 兜底创建
   // IndexedDB 音频持久化：key=url, value=blob。二次打开后播放零延迟且完全离线。
   var IDB_AUDIO_NAME = "wordsteps-audio", IDB_AUDIO_VER = 1, audioIdb = null;
   function idbAudioReady(cb) {
@@ -710,6 +717,7 @@
   /* ---------- 单词卡 ---------- */
   var tpl = document.getElementById("card-tpl");
   function buildCard(bw) {
+    if (!tpl) { var div = document.createElement("div"); div.textContent = bw.w; return div; }
     var node = tpl.content.firstElementChild.cloneNode(true);
     node._word = bw.w;
     var ipa = bw.ipa_uk || bw.ipa_us || "";
