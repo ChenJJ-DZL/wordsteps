@@ -6,7 +6,7 @@
   
   /* ---------- Service Worker 更新检测（仅新版弹窗，点稍后 2h 抑制） ---------- */
   var CHANGELOG = [
-    { ver: "20260730j", note: "记忆曲线恢复7天一档 + 更新弹窗仅新版触发" },
+    { ver: "20260730k", note: "记忆曲线恢复7天一档 + 更新弹窗仅新版触发" },
     { ver: "20260729e", note: "学习排序改为同族组块(同根词连续出现便于对比) + favicon.ico 补齐" },
     { ver: "20260729d", note: "PWA桌面应用自动更新提示(顶部横幅一键刷新)" },
     { ver: "20260729c", note: "打破固定背诵顺序：族内打乱+族间随机+复习±5%扰动" },
@@ -27,6 +27,9 @@
     var b = document.getElementById("update-banner");
     if (!b) return;
     b.style.display = "";
+    // 自动增加 body 顶部间距，防止 banner 遮盖 topbar
+    var origPad = document.body.style.paddingTop;
+    document.body.style.paddingTop = (parseInt(origPad, 10) || 56) + 40 + "px";
     var reloadBtn = document.getElementById("update-reload");
     var dismissBtn = document.getElementById("update-dismiss");
     var detailBtn = document.getElementById("update-detail");
@@ -109,7 +112,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260730j";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
+  var APP_VER = "20260730k";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
@@ -276,7 +279,7 @@
     var s = document.createElement("script");
     s.src = meta.file + "?v=" + APP_VER;
     s.onload = function () { BOOKS_DATA[id] = window["BOOK_" + id]; afterLoad(id); cb(BOOKS_DATA[id]); };
-    s.onerror = function () { cb(null); };
+    s.onerror = function () { console.error("词库加载失败: " + id); cb(null); };
     document.head.appendChild(s);
   }
   // 书加载完成后：记录真实词数，并刷新所有显示书名的界面（动态「名称(N词)」）
@@ -1003,7 +1006,9 @@ function fillAnalysis(node, bw) {
   function showView(name) {
     endSession();
     document.querySelectorAll(".view").forEach(function (v) { v.classList.remove("active"); });
-    document.getElementById("view-" + name).classList.add("active");
+    var target = document.getElementById("view-" + name);
+    if (!target) return;
+    target.classList.add("active");
     document.querySelectorAll(".nav-btn").forEach(function (b) { b.classList.toggle("active", b.dataset.view === name); });
     if (name === "home") renderHome();
     if (name === "history") renderHistory();
@@ -1014,7 +1019,8 @@ function fillAnalysis(node, bw) {
   /* ---------- 首页 ---------- */
   function renderHome() {
     var id = curBook();
-    loadBook(id, function () {
+    loadBook(id, function (book) {
+      if (!book) { document.getElementById("stat-total").textContent = "加载失败"; return; }
       refreshSort();
       var s = stats(id);
       document.getElementById("stat-due").textContent = s.due;
@@ -1150,7 +1156,7 @@ function fillAnalysis(node, bw) {
   function startLearn() {
     var id = curBook();
     var limit = state.settings.dailyNewLimit || 0;
-    loadBook(id, function () { learnQueue = newWords(id, limit); learnIdx = 0; learnRated = 0; renderLearn(); });
+    loadBook(id, function (book) { if (!book) { showView("home"); return; } learnQueue = newWords(id, limit); learnIdx = 0; learnRated = 0; renderLearn(); });
   }
   function renderLearn() {
     var id = curBook(), now = Date.now();
@@ -1185,7 +1191,7 @@ function fillAnalysis(node, bw) {
   var reviewQueue = [], reviewIdx = 0, reviewRated = 0;
   function startReview() {
     var id = curBook();
-    loadBook(id, function () { reviewQueue = dueWords(id); reviewIdx = 0; reviewRated = 0; renderReview(); });
+    loadBook(id, function (book) { if (!book) { showView("home"); return; } reviewQueue = dueWords(id); reviewIdx = 0; reviewRated = 0; renderReview(); });
   }
   function renderReview() {
     var stage = document.getElementById("review-stage"), controls = document.getElementById("rate-controls");
@@ -1262,6 +1268,8 @@ function fillAnalysis(node, bw) {
   });
   // 恢复备��按钮：仅在检测到备份数据且当前进度为空时显示
   (function checkRestorePanel() {
+    // 仅当主数据无法正常加载时才显示恢复面板
+    if (_loadedOk) return;
     try {
       var keys = [];
       for (var i = 0; i < localStorage.length; i++) {
