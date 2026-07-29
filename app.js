@@ -6,7 +6,7 @@
   
   /* ---------- Service Worker 更新检测（仅新版弹窗，点稍后 2h 抑制） ---------- */
   var CHANGELOG = [
-    { ver: "20260730g", note: "记忆曲线恢复7天一档 + 更新弹窗仅新版触发" },
+    { ver: "20260730h", note: "记忆曲线恢复7天一档 + 更新弹窗仅新版触发" },
     { ver: "20260729e", note: "学习排序改为同族组块(同根词连续出现便于对比) + favicon.ico 补齐" },
     { ver: "20260729d", note: "PWA桌面应用自动更新提示(顶部横幅一键刷新)" },
     { ver: "20260729c", note: "打破固定背诵顺序：族内打乱+族间随机+复习±5%扰动" },
@@ -58,29 +58,45 @@
   }
   function initSWUpdater() {
     if (!("serviceWorker" in navigator)) return;
+    var updateTriggered = false;
+    function trigger(ver) { if (updateTriggered) return; updateTriggered = true; showUpdateBanner(ver); }
+    // 路径 1: SW 激活后主动发消息
     navigator.serviceWorker.addEventListener("message", function (e) {
-      if (e.data && e.data.type === "sw-updated") showUpdateBanner(e.data.version || "?");
+      if (e.data && e.data.type === "sw-updated") trigger(e.data.version || "?");
+    });
+    // 路径 2: 控制器变更
+    navigator.serviceWorker.addEventListener("controllerchange", function () {
+      if (navigator.serviceWorker.controller && navigator.serviceWorker.controller.scriptURL) {
+        trigger(navigator.serviceWorker.controller.scriptURL);
+      } else { trigger(); }
     });
     navigator.serviceWorker.ready.then(function (reg) {
+      // 路径 3: updatefound + 安装完成
       reg.addEventListener("updatefound", function () {
         var newWorker = reg.installing;
         if (!newWorker) return;
         newWorker.addEventListener("statechange", function () {
-          if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-            newWorker.postMessage({ type: 'skip-waiting' });
+          if (newWorker.state === "installed") {
+            trigger("sw-installed");
+            if (navigator.serviceWorker.controller) {
+              newWorker.postMessage({ type: 'skip-waiting' });
+            }
           }
         });
       });
+      // 每小时主动检查
       setInterval(function () { reg.update(); }, 60 * 60 * 1000);
     });
-    navigator.serviceWorker.addEventListener("controllerchange", function () {
-      // controllerchange 后读取活跃 SW 的缓存版本号，避免旧页面的 APP_VER 不匹配
-      if (navigator.serviceWorker.controller && navigator.serviceWorker.controller.scriptURL) {
-        showUpdateBanner(navigator.serviceWorker.controller.scriptURL);
-      } else {
-        showUpdateBanner();
+    // 路径 4: DOM 就绪后延迟兜底（controllerchange 可能在监听注册前已触发）
+    setTimeout(function () {
+      if (navigator.serviceWorker.controller) {
+        // 渐进式检测：尝试 reg.update() 确认有无新版本
+        navigator.serviceWorker.getRegistration().then(function (r) {
+          if (r && r.waiting) trigger("sw-waiting");
+          else if (r && r.installing) trigger("sw-installing");
+        }).catch(function () {});
       }
-    });
+    }, 1200);
   }
   if (document.readyState === "complete" || document.readyState === "interactive") {
     initSWUpdater();
@@ -95,7 +111,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260730g";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
+  var APP_VER = "20260730h";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
