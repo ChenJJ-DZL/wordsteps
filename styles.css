@@ -412,6 +412,23 @@ body {
   .overview { grid-template-columns: repeat(4, 1fr); }
   .stat-num { font-size: 30px; }
 }
+/* Tablet */
+@media (min-width: 600px) and (max-width: 719px) {
+  .overview { grid-template-columns: repeat(3, 1fr); }
+  .stat-num { font-size: 28px; }
+  .flip-card { max-height: 600px; }
+}
+/* Phone landscape */
+@media (max-height: 500px) and (orientation: landscape) {
+  .flip-card { max-height: 85vh; }
+  .flip-front .word { font-size: 32px; }
+  .flip-front .ipa { font-size: 14px; margin-top: 4px; }
+  .flip-front .hint-flip { bottom: 6px; font-size: 11px; }
+  .rate-controls { margin-top: 4px; gap: 8px; }
+  .rate-controls .rate { padding: 8px 12px; font-size: 13px; }
+  #view-learn .subhead, #view-review .subhead { padding: 4px 0; }
+}
+/* Narrow phone */
 @media (max-width: 380px) {
   .flip-front .word { font-size: 40px; }
   .learn-zone { grid-template-columns: 1fr; }
