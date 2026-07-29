@@ -1,5 +1,5 @@
 // WordSteps service worker — 缓存应用外壳，运行时缓存词库，支持离线使用。
-const CACHE = 'wordsteps-v36';
+const CACHE = 'wordsteps-v37';
 const SHELL = [
   './index.html',
   './styles.css',
@@ -51,15 +51,28 @@ self.addEventListener('fetch', function (e) {
   // 跨域资源（如发音音频）直接放行，不缓存
   if (url.origin !== self.location.origin) return;
 
-  // 页面导航：网络优先，失败回退缓存
+  // 页面导航：缓存优先（立即渲染），后台拉取最新版本
   if (req.mode === 'navigate') {
     e.respondWith(
-      fetch(req).then(function (res) {
-        var cp = res.clone();
-        caches.open(CACHE).then(function (c) { c.put(req, cp); });
-        return res;
-      }).catch(function () {
-        return caches.match(req).then(function (r) { return r || caches.match('./index.html'); });
+      caches.match(req).then(function (hit) {
+        if (hit) {
+          // 后台更新缓存，不阻塞页面渲染
+          fetch(req).then(function (res) {
+            if (res && res.ok) {
+              var cp = res.clone();
+              caches.open(CACHE).then(function (c) { c.put(req, cp); });
+            }
+          }).catch(function () {});
+          return hit;
+        }
+        // 首次无缓存时走网络
+        return fetch(req).then(function (res) {
+          var cp = res.clone();
+          caches.open(CACHE).then(function (c) { c.put(req, cp); });
+          return res;
+        }).catch(function () {
+          return caches.match('./index.html');
+        });
       })
     );
     return;
