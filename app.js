@@ -1209,7 +1209,6 @@ function fillAnalysis(node, bw) {
     if (curSession) { curSession.reviewCount++; curSession[rating]++; }
     reviewRated++; reviewIdx++; renderReview();
   });
-  document.getElementById("review-exit").addEventListener("click", function () { showView("home"); });
 
   /* ---------- 历史 ---------- */
   function renderHistory() {
