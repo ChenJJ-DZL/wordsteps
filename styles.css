@@ -298,23 +298,12 @@ body {
 .b-head .ipa-sm { font-size: 16px; color: var(--ink-soft); font-family: "Georgia", serif; }
 .flip-back .zh { font-size: 25px; font-weight: 700; line-height: 1.4; }
 
-/* 长单词自适应：按 word+ipa 总长分级 */
-.flip-card.medium .flip-front .word { font-size: 40px; }
-.flip-card.medium .flip-front .ipa { font-size: 17px; }
-.flip-card.long .flip-front .word { font-size: 32px; }
-.flip-card.long .flip-front .ipa { font-size: 15px; }
-.flip-card.xlong .flip-front .word { font-size: 26px; letter-spacing: 0; }
-.flip-card.xlong .flip-front .ipa { font-size: 14px; }
-
-.flip-card.medium .b-head .word-sm { font-size: 26px; }
-.flip-card.medium .b-head .ipa-sm { font-size: 14px; }
-.flip-card.long .b-head { flex-wrap: wrap; row-gap: 4px; }
-.flip-card.long .b-head .word-sm { font-size: 22px; }
-.flip-card.long .b-head .ipa-sm { font-size: 13px; }
-/* 超长词：word 与 IPA 各自独占一行，居中 */
-.flip-card.xlong .b-head { flex-direction: column; align-items: flex-start; gap: 2px; }
-.flip-card.xlong .b-head .word-sm { font-size: 22px; }
-.flip-card.xlong .b-head .ipa-sm { font-size: 13px; margin-left: 4px; }
+/* 长单词自适应：>12 字母缩小 20%（50→40px） */
+.flip-card.long-word .flip-front .word { font-size: 40px; letter-spacing: 0; }
+.flip-card.long-word .flip-front .ipa { font-size: 18px; }
+.flip-card.long-word .b-head { flex-direction: column; align-items: flex-start; gap: 2px; }
+.flip-card.long-word .b-head .word-sm { font-size: 24px; }
+.flip-card.long-word .b-head .ipa-sm { font-size: 14px; }
 /* 词法分解行（融入音标格式） */
 .flip-back .analysis-line {
   font-size: 16px; color: var(--ink-soft); font-family: "Georgia", serif; line-height: 1.4;

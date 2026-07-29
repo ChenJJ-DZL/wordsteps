@@ -9,7 +9,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260729a";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
+  var APP_VER = "20260729b";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
@@ -597,11 +597,8 @@
     var node = tpl.content.firstElementChild.cloneNode(true);
     node._word = bw.w;
     var ipa = bw.ipa_uk || bw.ipa_us || "";
-    // 根据单词+IPA长度加 class，避免长词溢出/折行
-    var wlen = bw.w.length, ilen = ipa ? ipa.length : 0, total = wlen + ilen;
-    if (total > 18) node.classList.add("xlong");
-    else if (total > 14) node.classList.add("long");
-    else if (total > 10) node.classList.add("medium");
+    // 长单词（≥12字母）缩小一圈，避免正面溢出卡片
+    if (bw.w.length > 12) node.classList.add("long-word");
     node.querySelector(".word").textContent = bw.w;
     node.querySelector(".ipa").textContent = ipa;
     var rootBadge = node.querySelector(".root-badge");
