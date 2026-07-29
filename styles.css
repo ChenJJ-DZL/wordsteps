@@ -37,6 +37,20 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* ---------- 更新横幅 ---------- */
+#update-banner {
+  display: flex; align-items: center; justify-content: center; gap: 12px;
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: var(--primary); color: #fff; font-size: 14px; padding: 10px 16px;
+  box-shadow: 0 2px 8px rgba(79,110,247,0.3);
+}
+#update-banner span { font-weight: 600; }
+#update-banner button {
+  border: 1px solid rgba(255,255,255,0.5); background: rgba(255,255,255,0.15);
+  color: #fff; border-radius: 6px; padding: 4px 14px; font-size: 13px; cursor: pointer;
+}
+#update-banner button:hover { background: rgba(255,255,255,0.25); }
+
 /* ---------- Top bar ---------- */
 .topbar {
   position: fixed; top: 0; left: 0; right: 0; height: var(--topbar-h);

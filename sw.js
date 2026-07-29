@@ -1,5 +1,5 @@
 // WordSteps service worker — 缓存应用外壳，运行时缓存词库，支持离线使用。
-const CACHE = 'wordsteps-v27';
+const CACHE = 'wordsteps-v28';
 const SHELL = [
   './index.html',
   './styles.css',
@@ -18,6 +18,13 @@ self.addEventListener('install', function (e) {
   );
 });
 
+// 响应客户端消息（skip-waiting 强制激活）
+self.addEventListener('message', function (e) {
+  if (e.data && e.data.type === 'skip-waiting') {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('activate', function (e) {
   e.waitUntil(
     caches.keys().then(function (keys) {
@@ -25,6 +32,14 @@ self.addEventListener('activate', function (e) {
         return caches.delete(k);
       }));
     }).then(function () { return self.clients.claim(); })
+    .then(function () {
+      // 通知所有打开的客户端：新版本已激活，建议刷新
+      return self.clients.matchAll().then(function (clients) {
+        clients.forEach(function (client) {
+          client.postMessage({ type: 'sw-updated', version: CACHE });
+        });
+      });
+    })
   );
 });
 

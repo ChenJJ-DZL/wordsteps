@@ -3,13 +3,58 @@
    ========================================================= */
 (function () {
   "use strict";
+  
+  /* ---------- Service Worker 更新检测（桌面 App 自动提示刷新） ---------- */
+  var _swUpdateShown = false;
+  function showUpdateBanner() {
+    if (_swUpdateShown) return; _swUpdateShown = true;
+    var b = document.getElementById("update-banner");
+    if (!b) return;
+    b.style.display = "";
+    document.getElementById("update-reload").addEventListener("click", function () {
+      b.style.display = "none";
+      // 通知 SW 跳过等待并重新加载
+      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'skip-waiting' });
+      }
+      location.reload();
+    });
+    document.getElementById("update-dismiss").addEventListener("click", function () {
+      b.style.display = "none";
+    });
+  }
+  if ("serviceWorker" in navigator) {
+    // 监听来自 SW 的激活通知
+    navigator.serviceWorker.addEventListener("message", function (e) {
+      if (e.data && e.data.type === "sw-updated") showUpdateBanner();
+    });
+    // 监听 SW 更新事件
+    navigator.serviceWorker.ready.then(function (reg) {
+      reg.addEventListener("updatefound", function () {
+        var newWorker = reg.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener("statechange", function () {
+          if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+            // 新 SW 已安装但尚未激活——跳过等待
+            newWorker.postMessage({ type: 'skip-waiting' });
+          }
+        });
+      });
+      // 每小时检查一次更新
+      setInterval(function () { reg.update(); }, 60 * 60 * 1000);
+    });
+    // 控制器变更（新 SW 接替后）
+    navigator.serviceWorker.addEventListener("controllerchange", function () {
+      showUpdateBanner();
+    });
+  }
 
   var REGISTRY = window.BOOK_REGISTRY || [];
   var BOOK_COUNTS = {};   // 各单词本真实词数：加载后由 window.BOOK_<id>.words.length 动态写入
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260729c";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
+  var APP_VER = "20260729d";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整

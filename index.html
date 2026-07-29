@@ -9,9 +9,14 @@
   <link rel="icon" href="favicon.ico?v=8" sizes="any" />
   <link rel="icon" href="icon.svg?v=8" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon-512.png" />
-  <link rel="stylesheet" href="styles.css?v=20260729c" />
+  <link rel="stylesheet" href="styles.css?v=20260729d" />
 </head>
 <body>
+  <div id="update-banner" style="display:none">
+    <span>新版本已发布</span>
+    <button id="update-reload">立即更新</button>
+    <button id="update-dismiss">稍后</button>
+  </div>
   <header class="topbar">
     <div class="brand">
       <div class="brand-text">
@@ -233,9 +238,9 @@
 
   <audio id="player" hidden></audio>
 
-  <script src="books/manifest.js?v=20260729c"></script>
-  <script src="books/en_defs.js?v=20260729c"></script>
-  <script src="app.js?v=20260729c"></script>
+  <script src="books/manifest.js?v=20260729d"></script>
+  <script src="books/en_defs.js?v=20260729d"></script>
+  <script src="app.js?v=20260729d"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
