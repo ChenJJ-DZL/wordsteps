@@ -39,7 +39,7 @@ body {
 
 /* ---------- 更新横幅 ---------- */
 #update-banner {
-  display: flex; align-items: center; justify-content: center; gap: 12px;
+  display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
   background: var(--primary); color: #fff; font-size: 14px; padding: 10px 16px;
   box-shadow: 0 2px 8px rgba(79,110,247,0.3);
@@ -50,6 +50,10 @@ body {
   color: #fff; border-radius: 6px; padding: 4px 14px; font-size: 13px; cursor: pointer;
 }
 #update-banner button:hover { background: rgba(255,255,255,0.25); }
+#update-details {
+  width: 100%; margin-top: 4px; padding: 8px 0 0; border-top: 1px solid rgba(255,255,255,0.25);
+  font-size: 13px; line-height: 1.6; white-space: pre-wrap; opacity: 0.9;
+}
 
 /* ---------- Top bar ---------- */
 .topbar {
