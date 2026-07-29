@@ -4,10 +4,9 @@
 (function () {
   "use strict";
   
-  /* ---------- Service Worker 更新检测（仅新版触发，点稍后 2h 内不再弹） ---------- */
-  // 版本更新日志（每次发布时追加一条，新版本在顶部）
+  /* ---------- Service Worker 更新检测（仅新版弹窗，点稍后 2h 抑制） ---------- */
   var CHANGELOG = [
-    { ver: "20260730b", note: "每次启动弹更新横幅+详情按钮 + 修复启动白屏与桌面图标消失" },
+    { ver: "20260730c", note: "记忆曲线恢复7天一档 + 更新弹窗仅新版触发" },
     { ver: "20260729e", note: "学习排序改为同族组块(同根词连续出现便于对比) + favicon.ico 补齐" },
     { ver: "20260729d", note: "PWA桌面应用自动更新提示(顶部横幅一键刷新)" },
     { ver: "20260729c", note: "打破固定背诵顺序：族内打乱+族间随机+复习±5%扰动" },
@@ -18,12 +17,20 @@
     { ver: "20260728b", note: "移除正面'族'角标(背面已有完整词法分解)" },
     { ver: "20260728a", note: "词法分解行(前缀+词根+后缀均含中文释义) + 卡片背面版面压缩" }
   ];
-  function showUpdateBanner() {
-    // 检查"稍后"抑制：2 小时内不再弹
+  // 仅当 APP_VER > 上次记录版本时才弹窗
+  function shouldShowBanner() {
     try {
       var dismissTs = parseInt(localStorage.getItem("__update_dismissed") || "0", 10);
-      if (dismissTs && Date.now() - dismissTs < 2 * 3600 * 1000) return;
-    } catch (e) {}
+      if (dismissTs && Date.now() - dismissTs < 2 * 3600 * 1000) return false;
+      var lastSeen = localStorage.getItem("__last_seen_ver") || "0";
+      return lastSeen < APP_VER;
+    } catch (e) { return false; }
+  }
+  function markVersionSeen() {
+    try { localStorage.setItem("__last_seen_ver", APP_VER); } catch (e) {}
+  }
+  function showUpdateBanner() {
+    if (!shouldShowBanner()) return;
     var b = document.getElementById("update-banner");
     if (!b) return;
     b.style.display = "";
@@ -32,8 +39,7 @@
     var detailBtn = document.getElementById("update-detail");
     var detailEl = document.getElementById("update-details");
     if (reloadBtn) reloadBtn.addEventListener("click", function () {
-      b.style.display = "none";
-      try { localStorage.removeItem("__update_dismissed"); } catch (e) {}
+      b.style.display = "none"; markVersionSeen();
       if (navigator.serviceWorker && navigator.serviceWorker.controller) {
         navigator.serviceWorker.controller.postMessage({ type: 'skip-waiting' });
       }
@@ -43,7 +49,6 @@
       b.style.display = "none";
       try { localStorage.setItem("__update_dismissed", Date.now().toString()); } catch (e) {}
     });
-    // 详情：展示最近更新记录
     if (detailBtn && detailEl) {
       var txt = CHANGELOG.map(function (c) {
         return "v" + c.ver + "  " + c.note;
@@ -56,6 +61,8 @@
   }
   function initSWUpdater() {
     if (!("serviceWorker" in navigator)) return;
+    // 标记当前版本为已见（无论弹窗与否）
+    markVersionSeen();
     navigator.serviceWorker.addEventListener("message", function (e) {
       if (e.data && e.data.type === "sw-updated") showUpdateBanner();
     });
@@ -88,7 +95,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260730b";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
+  var APP_VER = "20260730c";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
