@@ -1,10 +1,11 @@
 // WordSteps service worker — 缓存应用外壳，运行时缓存词库，支持离线使用。
-const CACHE = 'wordsteps-v28';
+const CACHE = 'wordsteps-v29';
 const SHELL = [
   './index.html',
   './styles.css',
   './app.js',
   './manifest.webmanifest',
+  './favicon.ico',
   './icon-192.png',
   './icon-512.png',
   './icon.svg'

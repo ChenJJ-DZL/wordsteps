@@ -54,7 +54,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260729d";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
+  var APP_VER = "20260729e";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
@@ -285,49 +285,44 @@
   function sortMode(id) {
     return (state.settings.bookSort && state.settings.bookSort[id]) || DEFAULT_SORT;
   }
-  // 词根序：按 root 聚类 + 轮转交错，保证同根词分散到不同位置（避免密集聚类的前摄干扰）；
-  // 无 root 的词（'_'+词）各自成组，同样参与交错。字母/词频序分别按词形与词频(collins 星级)排序。
+  // 词根序（学习用）：同词族单词连续出现，便于对比记忆（如 reform/formal/uniform）；
+  // 族内随机排列 + 族间随机排列，避免固定顺序形成肌肉记忆。
+  // 无 root 的词（'_'+词）各自成组放最后。
   function sortWords(words, mode) {
     if (mode === "freq") {
       return words.slice().sort(function (a, b) {
         var fa = (a.freq != null ? a.freq : -1), fb = (b.freq != null ? b.freq : -1);
-        if (fb !== fa) return fb - fa;               // collins 星级高（更常用）在前
+        if (fb !== fa) return fb - fa;
         return (a.w || "").localeCompare(b.w || "");
       });
     }
     if (mode === "alpha") {
       return words.slice().sort(function (a, b) { return (a.w || "").localeCompare(b.w || ""); });
     }
-    // round-robin 交错聚类 + 随机化：族内单词随机打乱，族之间随机排列（每 5 族一批轮转）
+    // 词族分组：族内打乱 + 族间随机排列 → 同族连续出现，但组间顺序每次不同
     var g = {}, i, k;
     words.forEach(function (w) {
       var key = w.root || ("_" + (w.w || ""));
       (g[key] = g[key] || []).push(w);
     });
-    // Fisher-Yates shuffle
     function shuffle(arr) {
       for (var j = arr.length - 1; j > 0; j--) {
         var r = Math.floor(Math.random() * (j + 1));
         var t = arr[j]; arr[j] = arr[r]; arr[r] = t;
       }
     }
-    // 族内打乱
     var ks = Object.keys(g);
-    for (i = 0; i < ks.length; i++) shuffle(g[ks[i]]);
-    // 族间随机排列
-    shuffle(ks);
-    // 每 5 个族一批交错输出（防过快跳出同一族，也防同族连续出现）
-    var out = [], batchSize = 5;
-    for (var start = 0; start < ks.length; start += batchSize) {
-      var batch = ks.slice(start, start + batchSize), idx = 0, any = true;
-      while (any) {
-        any = false;
-        for (i = 0; i < batch.length; i++) {
-          var arr = g[batch[i]];
-          if (arr.length > idx) { out.push(arr[idx]); any = true; }
-        }
-        idx++;
-      }
+    // 分离"有词根"的族和"无词根"的散词(以 _ 开头)
+    var rooted = [], orphans = [];
+    for (i = 0; i < ks.length; i++) {
+      if (ks[i][0] === "_") orphans.push(ks[i]); else rooted.push(ks[i]);
+      shuffle(g[ks[i]]);  // 族内打乱
+    }
+    shuffle(rooted); shuffle(orphans);  // 族间随机排列
+    ks = rooted.concat(orphans);
+    var out = [];
+    for (i = 0; i < ks.length; i++) {
+      out = out.concat(g[ks[i]]);
     }
     return out;
   }
