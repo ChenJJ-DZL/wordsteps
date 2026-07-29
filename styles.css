@@ -51,9 +51,10 @@ body {
 }
 #update-banner button:hover { background: rgba(255,255,255,0.25); }
 #update-details {
-  width: 100%; margin-top: 4px; padding: 8px 0 0; border-top: 1px solid rgba(255,255,255,0.25);
+  display: none; width: 100%; margin-top: 4px; padding: 8px 0 0; border-top: 1px solid rgba(255,255,255,0.25);
   font-size: 13px; line-height: 1.6; white-space: pre-wrap; opacity: 0.9;
 }
+#update-details.show { display: block; }
 
 /* ---------- Top bar ---------- */
 .topbar {
