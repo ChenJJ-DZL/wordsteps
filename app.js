@@ -607,6 +607,7 @@
   if (!player) player = document.createElement("audio");  // 兜底创建
   // IndexedDB 音频持久化：key=url, value=blob。二次打开后播放零延迟且完全离线。
   var IDB_AUDIO_NAME = "wordsteps-audio", IDB_AUDIO_VER = 1, audioIdb = null;
+  // ⚠️ 仅在音频格式变更时增此版本号；日常更新不要改，避免用户音频缓存被无故清空
   function idbAudioReady(cb) {
     if (audioIdb) { cb(audioIdb); return; }
     if (!("indexedDB" in window)) { cb(null); return; }
