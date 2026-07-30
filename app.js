@@ -6,7 +6,7 @@
   
   /* ---------- Service Worker 更新检测（仅新版弹窗，点稍后 2h 抑制） ---------- */
   var CHANGELOG = [
-    { ver: "20260730p", note: "记忆曲线恢复7天一档 + 更新弹窗仅新版触发" },
+    { ver: "20260730q", note: "记忆曲线恢复7天一档 + 更新弹窗仅新版触发" },
     { ver: "20260729e", note: "学习排序改为同族组块(同根词连续出现便于对比) + favicon.ico 补齐" },
     { ver: "20260729d", note: "PWA桌面应用自动更新提示(顶部横幅一键刷新)" },
     { ver: "20260729c", note: "打破固定背诵顺序：族内打乱+族间随机+复习±5%扰动" },
@@ -110,7 +110,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260730p";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
+  var APP_VER = "20260730q";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
@@ -283,10 +283,17 @@
   // 书加载完成后：记录真实词数，并刷新所有显示书名的界面（动态「名称(N词)」）
   function afterLoad(id) {
     var b = BOOKS_DATA[id];
-    if (b && b.words) { BOOK_COUNTS[id] = b.words.length; clearIncCache(); refreshBookLabels(); }
+    if (b && b.words) { BOOK_COUNTS[id] = b.words.length; clearIncCache(); refreshBookLabels(); buildFamIndex(b); }
+  }
+  // 构建同族词索引：root → [{w,zh,ipa_us}]
+  function buildFamIndex(b) {
+    var idx = {}; b.words.forEach(function (v) {
+      var r = v.root; if (!r) return;
+      (idx[r] = idx[r] || []).push({w:v.w, zh:v.zh, ipa_us:v.ipa_us});
+    });
+    b._fam = idx;
   }
   // 增量模式：这些词本始终显示全量（基础/初中），其余从「之前所有词本并集」中剔除已学底层词
-  var FULL_BOOKS = { ogden: 1, chuzhong: 1 };
   // 差集比对用的归一化键：转小写、去非字母数字（容忍大小写/标点差异）
   function wkey(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
   // 计算「排在 bookId 之前的所有词本」的词形键并集（增量差集的「已掌握底层」）
@@ -768,12 +775,36 @@
     if (syn.length) syn.forEach(function (s) { sb.appendChild(mkChip(s)); }); else sb.innerHTML = '<span class="chip empty">无</span>';
     var ab = node.querySelector(".ant-chips"); ab.innerHTML = "";
     if (ant.length) ant.forEach(function (s) { ab.appendChild(mkChip(s)); }); else ab.innerHTML = '<span class="chip empty">无</span>';
+    // 同族词
+    var fb = node.querySelector(".fam-chips"), fblock = node.querySelector(".fam-block");
+    if (fb && fblock) {
+      var fam = findFamily(bw);
+      fb.innerHTML = "";
+      if (fam.length > 1) {
+        fblock.style.display = "";
+        fam.forEach(function (fw) { if (fw.w !== bw.w) fb.appendChild(mkFamChip(fw)); });
+      } else {
+        fblock.style.display = "none";
+      }
+    }
     fillAnalysis(node, bw);
   }
   function mkChip(s) {
     var c = document.createElement("span"); c.className = "chip"; c.textContent = s;
     c.addEventListener("click", function (e) { e.stopPropagation(); playAudio(s); });
     return c;
+  }
+  function mkFamChip(fw) {
+    var c = document.createElement("span"); c.className = "chip fam-chip";
+    c.textContent = fw.w + " " + (fw.zh ? fw.zh.split(",")[0] : "");
+    c.title = (fw.ipa_us || "") + " " + (fw.zh || "");
+    c.addEventListener("click", function (e) { e.stopPropagation(); playAudio(fw.w); });
+    return c;
+  }
+  function findFamily(bw) {
+    if (!bw.root) return [];
+    var b = BOOKS_DATA[curBook()];
+    return (b && b._fam && b._fam[bw.root]) ? b._fam[bw.root] : [];
   }
 
   /* ---------- 词法分解（前/词缀 + 词根 + 后缀） ---------- */
@@ -915,6 +946,10 @@ function fillAnalysis(node, bw) {
       if (depth > 4 || word.length < 3) return null;
       // 1) 整词就是词根
       if (ROOT_SET.has(word)) return [{type:'root', val:word}];
+      // 1b) 单词自身即词根（含 root 字段的非拉丁词汇，如 weather、brother）
+      if (bw.root && bw.root === bw.w.toLowerCase() && depth === 0) {
+        return [{type:'root', val:word}];
+      }
       var cands = [];
       // 2) prefix + suffix（root 在 ROOT_SET）
       for (var pi = 0; pi < preKeys.length; pi++) {
