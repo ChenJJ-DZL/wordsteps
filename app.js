@@ -1162,7 +1162,7 @@ function fillAnalysis(node, bw) {
     // 统计总遗忘与第30天保持率
     var totalLearned = 0, totalForgotten = 0, f30 = frAt(30);
     for (var k in dfs) { totalLearned += dfs[k].total; totalForgotten += dfs[k].forgotten; }
-    var est30 = f30 !== null ? Math.round((1 - f30) * 100) : (totalLearned > 0 ? Math.round((1 - totalForgotten / totalLearned) * 100) : 100);
+    var est30 = f30 !== null ? Math.round((1 - f30) * totalLearned) : (totalLearned > 0 ? Math.round((1 - totalForgotten / (totalLearned || 1)) * totalLearned) : 0);
     return { xs: xs, pts: pts, est30: est30 };
   }
   function drawForgetCurve() {
