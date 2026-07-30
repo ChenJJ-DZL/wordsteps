@@ -1159,7 +1159,6 @@ function fillAnalysis(node, bw) {
   /* ---------- 记忆曲线（基于自然日遗忘数据，7天一档） ---------- */
   function forgetCurveData() {
     var dfs = state.dayForgetStats || {};
-    // 从 dayForgetStats 中按天数桶查记忆保持率（记住/总量）
     function rrAt(day) {
       var key = day === 0 ? "当天" : day + "天后";
       var s = dfs[key] || { total: 0, forgotten: 0 };
@@ -1167,18 +1166,43 @@ function fillAnalysis(node, bw) {
     }
     var xs = [0, 7, 14, 21, 28];
     var pts = xs.map(function (d) { return rrAt(d); });
+    // 统计总量（用于推算和 est30）
     var totalLearned = 0, totalForgotten = 0, r30 = rrAt(30);
     for (var k in dfs) { totalLearned += dfs[k].total; totalForgotten += dfs[k].forgotten; }
-    var base = pts[0] !== null ? pts[0] : (totalLearned >= 3 ? (totalLearned - totalForgotten) / totalLearned : 0.95);
-    var dayDecay = totalLearned >= 3 ? (totalForgotten / totalLearned) / 28 : 0.01;
-    for (var i = 0; i < pts.length; i++) {
-      if (pts[i] !== null) continue;
-      var prev = null, pi = -1;
-      for (var j = i - 1; j >= 0; j--) { if (pts[j] !== null) { prev = pts[j]; pi = j; break; } }
-      if (prev !== null) pts[i] = Math.max(0.05, prev * (1 - dayDecay * (xs[i] - xs[pi]) * 28));
-      else pts[i] = Math.max(0.05, base * (1 - dayDecay * xs[i] * 28));
+    var overallRate = totalLearned >= 5 ? (totalLearned - totalForgotten) / totalLearned : 0.95;
+    // 填补缺失点：
+    // 1) 已知两点之间 → 线性插值
+    // 2) 仅"今天"有数据 → 指数衰减 R(t)=R₀×overallRate^(t/7)
+    // 3) 无任何数据 → 全用 overallRate
+    var firstReal = -1, lastReal = -1;
+    for (var i = 0; i < pts.length; i++) { if (pts[i] !== null) { if (firstReal < 0) firstReal = i; lastReal = i; } }
+    if (firstReal >= 0) {
+      // 已知点之间线性插值 + 超出部分用指数衰减延续
+      for (var i2 = 0; i2 < pts.length; i2++) {
+        if (pts[i2] !== null) continue;
+        var L = null, R = null;
+        for (var j = i2 - 1; j >= 0; j--) { if (pts[j] !== null) { L = pts[j]; break; } }
+        for (var k2 = i2 + 1; k2 < pts.length; k2++) { if (pts[k2] !== null) { R = pts[k2]; break; } }
+        if (L !== null && R !== null) {
+          // 线性插值
+          var li = -1, ri = -1;
+          for (var ii = 0; ii < pts.length; ii++) {
+            if (pts[ii] !== null && ii < i2 && (li < 0 || xs[ii] > xs[li])) li = ii;
+            if (pts[ii] !== null && ii > i2 && (ri < 0 || xs[ii] < xs[ri])) ri = ii;
+          }
+          pts[i2] = L + (R - L) * (xs[i2] - xs[li]) / (xs[ri] - xs[li]);
+        } else if (L !== null) {
+          // 超出末尾 → 指数衰减
+          pts[i2] = Math.max(0.05, L * Math.pow(overallRate, (xs[i2] - xs[lastReal]) / 7));
+        } else {
+          pts[i2] = overallRate;
+        }
+      }
+    } else {
+      // 无任何真实数据 → 全部填 overallRate (新用户)
+      for (var i3 = 0; i3 < pts.length; i3++) pts[i3] = overallRate;
     }
-    var est30 = r30 !== null ? Math.round(r30 * totalLearned) : (totalLearned > 0 ? Math.round((1 - totalForgotten / (totalLearned || 1)) * totalLearned) : 0);
+    var est30 = r30 !== null ? Math.round(r30 * totalLearned) : (totalLearned > 0 ? Math.round(overallRate * totalLearned) : 0);
     return { xs: xs, pts: pts, est30: est30 };
   }
   function drawForgetCurve() {
