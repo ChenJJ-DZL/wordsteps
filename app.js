@@ -662,7 +662,7 @@
     var url = c ? (state.settings.accent === "uk" ? c.audio_uk : c.audio_us) : "";
     // 如果没有在线音频URL，生成TTS音频URL供下载和缓存
     var tts = "";
-    if (!url && word) try { tts = "https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=" + encodeURIComponent(word); } catch(e){}
+    if (!url && word) try { tts = "https://api.dictionaryapi.dev/media/pronunciations/en/" + encodeURIComponent(word) + "-us.mp3"; } catch(e){}
     if (url || tts) {
       var finalUrl = url || tts;
       idbAudioGet(finalUrl, function (blob) {
@@ -1085,7 +1085,7 @@ function fillAnalysis(node, bw) {
     var words = b.words.filter(function (v) { return state.cache[v.w]; });
     var total = words.length, done = 0, fail = 0;
     function audioUrl(v) {
-      return (state.cache[v.w] || {})[acc] || "https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=" + encodeURIComponent(v.w);
+      return (state.cache[v.w] || {})[acc] || "https://api.dictionaryapi.dev/media/pronunciations/en/" + encodeURIComponent(v.w) + "-us.mp3";
     }
     function tick() {
       if (!el) return;
