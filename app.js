@@ -637,6 +637,13 @@
     if (!url) return;
     idbAudioGet(url, function (blob) { if (blob) return; fetchAudio(url, null); });
   }
+  // 提前预下载下一张卡片的音频（减少翻页后的播放延迟）
+  function preloadCardAudio(bw) {
+    var c = state.cache[bw.w];
+    if (!c || !c.loaded) return;  // 词还没有 enrich 数据，等 enrich 后再预下载
+    var url = state.settings.accent === "uk" ? c.audio_uk : c.audio_us;
+    if (url) preloadAudioUrl(url);
+  }
   function fetchAudio(url, cb) {
     try {
       fetch(url, { cache: "force-cache" }).then(function (r) {
@@ -1252,6 +1259,8 @@ function fillAnalysis(node, bw) {
     }
     var bw = learnQueue[learnIdx];
     var node = buildCard(bw); stage.appendChild(node); prepareCard(bw, node);
+    // 提前预下载下一张卡片的音频
+    if (learnIdx + 1 < learnQueue.length) preloadCardAudio(learnQueue[learnIdx + 1]);
   }
   document.getElementById("learn-rate-controls").addEventListener("click", function (e) {
     var btn = e.target.closest(".rate"); if (!btn || !learnQueue.length || learnIdx >= learnQueue.length) return;
@@ -1277,6 +1286,8 @@ function fillAnalysis(node, bw) {
     var node = buildCard(bw);
     node.addEventListener("click", function () { controls.hidden = false; });
     stage.appendChild(node); prepareCard(bw, node);
+    // 提前预下载下一张卡片的音频
+    if (reviewIdx + 1 < reviewQueue.length) preloadCardAudio(reviewQueue[reviewIdx + 1]);
   }
   document.getElementById("rate-controls").addEventListener("click", function (e) {
     var btn = e.target.closest(".rate"); if (!btn || !reviewQueue.length || reviewIdx >= reviewQueue.length) return;
