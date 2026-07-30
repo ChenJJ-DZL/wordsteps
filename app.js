@@ -660,9 +660,12 @@
   function playAudio(word) {
     var c = state.cache[word];
     var url = c ? (state.settings.accent === "uk" ? c.audio_uk : c.audio_us) : "";
-    if (url) {
-      // 1) 优先从 IndexedDB 读 blob（离线可用，零延迟）
-      idbAudioGet(url, function (blob) {
+    // 如果没有在线音频URL，生成TTS音频URL供下载和缓存
+    var tts = "";
+    if (!url && word) try { tts = "https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=" + encodeURIComponent(word); } catch(e){}
+    if (url || tts) {
+      var finalUrl = url || tts;
+      idbAudioGet(finalUrl, function (blob) {
         if (blob) {
           try {
             var prev = player._blobUrl;
@@ -672,8 +675,7 @@
           } catch (e) {}
           return;
         }
-        // 2) 回退到 fetch 并写入 IDB（首次在线）
-        fetchAudio(url, function (blob2) {
+        fetchAudio(finalUrl, function (blob2) {
           if (blob2) {
             try {
               var prev2 = player._blobUrl;
@@ -1078,10 +1080,13 @@ function fillAnalysis(node, bw) {
     if (_precaching) return;
     _precaching = true;
     var el = document.getElementById("cache-badge");
-    // 只计有音频URL的词，与updateCacheBadge中audios口径一致
+    // 包含所有词：有在线音频的优先，无在线音频的自动生成TTS URL
     var acc = state.settings.accent === "uk" ? "audio_uk" : "audio_us";
-    var words = b.words.filter(function (v) { return state.cache[v.w] && state.cache[v.w][acc]; });
+    var words = b.words.filter(function (v) { return state.cache[v.w]; });
     var total = words.length, done = 0, fail = 0;
+    function audioUrl(v) {
+      return (state.cache[v.w] || {})[acc] || "https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=en&q=" + encodeURIComponent(v.w);
+    }
     function tick() {
       if (!el) return;
       el.textContent = "下载中 " + done + "/" + total + (fail ? "（" + fail + "失败）" : "");
@@ -1092,8 +1097,7 @@ function fillAnalysis(node, bw) {
         updateCacheBadge(id);
         return;
       }
-      var url = state.cache[words[i].w][acc] || "";
-      if (!url) { next(i + 1); return; }
+      var url = audioUrl(words[i]);
       idbAudioGet(url, function (blob) {
         if (blob) { done++; next(i + 1); tick(); return; }
         fetchAudio(url, function (result) {
