@@ -360,7 +360,8 @@ body {
 .btn-primary { background: var(--good); color: #fff; }
 .btn-ghost { background: var(--surface); border-color: var(--line); color: var(--ink-soft); }
 .btn-ghost.sm { flex: none; padding: 9px 16px; font-size: 14px; }
-.rate { flex: 1; border-radius: 14px; padding: 18px 8px; font-size: 17px; font-weight: 700; cursor: pointer; border: none; color: #fff; }
+.rate { flex: 1; border-radius: 14px; padding: 18px 8px; font-size: 17px; font-weight: 700; cursor: pointer; border: none; color: #fff; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.rate svg { flex: none; vertical-align: middle; }
 .rate-good { background: var(--good); }
 .rate-mid { background: var(--mid); }
 .rate-bad { background: var(--bad); }
@@ -403,7 +404,7 @@ body {
   flex: 1; border: none; background: none; cursor: pointer; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 3px; color: var(--ink-faint); font-size: 13px;
 }
-.nav-btn span { font-size: 22px; }
+.nav-btn svg { display: block; margin-bottom: 1px; }
 .nav-btn.active { color: var(--primary); }
 
 /* ---------- Desktop tweaks ---------- */
