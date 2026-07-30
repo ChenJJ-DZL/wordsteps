@@ -242,10 +242,23 @@
   <script src="books/en_defs.js"></script>
   <script src="app.js"></script>
   <script>
+    // SW 注册与更新检测（独立于 app.js，即使 app.js 崩溃也能运行）
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function () {
-        navigator.serviceWorker.register('sw.js').catch(function () {});
-      });
+      navigator.serviceWorker.register('sw.js').then(function(reg) {
+        // 每次加载立即检查更新
+        reg.update();
+        // 控制器变更（新 SW 激活）→ 自动刷新
+        navigator.serviceWorker.addEventListener('controllerchange', function() {
+          window.location.reload();
+        });
+        // updatefound → 新 SW 安装完成 → skipWaiting
+        reg.addEventListener('updatefound', function() {
+          var w = reg.installing;
+          if (w) w.addEventListener('statechange', function() {
+            if (w.state === 'installed') w.postMessage({type:'skip-waiting'});
+          });
+        });
+      }).catch(function(){});
     }
   </script>
 </body>
