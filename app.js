@@ -1080,36 +1080,24 @@ function fillAnalysis(node, bw) {
     if (_precaching) return;
     _precaching = true;
     var el = document.getElementById("cache-badge");
-    // 包含所有词：有在线音频的优先，无在线音频的自动生成TTS URL
     var acc = state.settings.accent === "uk" ? "audio_uk" : "audio_us";
     var words = b.words.filter(function (v) { return state.cache[v.w]; });
-    var total = words.length, done = 0, fail = 0;
-    function audioUrl(v) {
-      return (state.cache[v.w] || {})[acc] || "https://api.dictionaryapi.dev/media/pronunciations/en/" + encodeURIComponent(v.w) + "-us.mp3";
-    }
-    function tick() {
-      if (!el) return;
-      el.textContent = "下载中 " + done + "/" + total + (fail ? "（" + fail + "失败）" : "");
-    }
-    function next(i) {
+    var total = words.length, done = 0;
+    function show() { if (el && _precaching) el.textContent = "下载中 " + done + "/" + total; }
+    function done2() { if (el) el.textContent = "缓存 " + done + "/" + total + " 词"; }
+    var idx = 0;
+    function run() {
       if (!_precaching) return;
-      if (i >= words.length) {
-        _precaching = false;
-        updateCacheBadge(id);
-        return;
-      }
-      var url = audioUrl(words[i]);
+      if (idx >= total) { _precaching = false; done2(); return; }
+      var w = words[idx];
+      var url = (state.cache[w.w] || {})[acc] || "https://api.dictionaryapi.dev/media/pronunciations/en/" + encodeURIComponent(w.w) + "-us.mp3";
       idbAudioGet(url, function (blob) {
-        if (!_precaching) return;
-        if (blob) { done++; next(i + 1); tick(); return; }
-        fetchAudio(url, function (result) {
-          if (!_precaching) return;
-          if (result) done++; else fail++;
-          tick(); next(i + 1);
-        });
+        if (blob) { done++; idx++; show(); run(); return; }
+        fetchAudio(url, function () { done++; idx++; show(); run(); });
       });
+      show();
     }
-    tick(); next(0);
+    show(); run();
   }
   // 点击缓存徽章触发预下载
   var _cacheBadgeBtn = document.getElementById("cache-badge");
