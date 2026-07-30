@@ -249,12 +249,6 @@
     // SW 注册与更新检测（独立于 app.js，即使 app.js 崩溃也能运行）
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').then(function(reg) {
-        // 先注册监听器，再触发更新检查（避免竞态）
-        var updated = false;
-        navigator.serviceWorker.addEventListener('controllerchange', function() {
-          if (updated) return; updated = true;
-          window.location.reload();
-        });
         reg.addEventListener('updatefound', function() {
           var w = reg.installing;
           if (w) w.addEventListener('statechange', function() {
@@ -263,7 +257,6 @@
             }
           });
         });
-        // 最后触发检查
         reg.update();
       }).catch(function(){});
     }
