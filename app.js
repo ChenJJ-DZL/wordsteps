@@ -1064,7 +1064,7 @@ function fillAnalysis(node, bw) {
       });
       Promise.all(tasks).then(function () {
         if (_precaching) return;
-        el.textContent = "缓存 " + cached + "/" + total + " 词 · " + audioOk + "/" + audios + " 音";
+        el.textContent = "缓存 " + cached + "/" + total + " 词";
       });
     });
     // 同步先写（下一帧异步 IDB 结果覆盖）
@@ -1088,7 +1088,7 @@ function fillAnalysis(node, bw) {
     function next(i) {
       if (i >= words.length) {
         _precaching = false;
-        if (el) el.textContent = "就绪 " + (total - fail) + "/" + total + " 首";
+        updateCacheBadge(id);
         return;
       }
       var url = state.cache[words[i].w][acc] || "";
