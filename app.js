@@ -1159,20 +1159,29 @@ function fillAnalysis(node, bw) {
   /* ---------- 记忆曲线（基于自然日遗忘数据，7天一档） ---------- */
   function forgetCurveData() {
     var dfs = state.dayForgetStats || {};
-    // 从 dayForgetStats 中按天数桶查遗忘率
+    // 从 dayForgetStats 中按天数桶查遗忘率（宽松阈值：>=1 即可，不要求 >=3）
     function frAt(day) {
       var key = day === 0 ? "当天" : day + "天后";
       var s = dfs[key] || { total: 0, forgotten: 0 };
-      return s.total >= 3 ? s.forgotten / s.total : null;
+      return s.total >= 1 ? s.forgotten / s.total : null;
     }
-    // X 轴：0/7/14/21/28天，缺失的点用线性插值
+    // X 轴：0/7/14/21/28天
     var xs = [0, 7, 14, 21, 28];
     var pts = xs.map(function (d) { return frAt(d); });
-    // 统计总遗忘与第30天保持率
+    // 统计总遗忘率，用于推算缺失点的理论值
     var totalLearned = 0, totalForgotten = 0, f30 = frAt(30);
     for (var k in dfs) { totalLearned += dfs[k].total; totalForgotten += dfs[k].forgotten; }
+    var avgRate = totalLearned >= 3 ? totalForgotten / totalLearned : 0.3;  // 默认30%遗忘率
+    // 填补缺失点：用理论折线 (day 0 实际值 × (1 - avgRate * day/28))
+    for (var i = 0; i < pts.length; i++) {
+      if (pts[i] !== null) continue;
+      var prev = null;
+      for (var j = i - 1; j >= 0; j--) { if (pts[j] !== null) { prev = pts[j]; break; } }
+      if (prev !== null) pts[i] = prev + (avgRate - prev) * (xs[i] / 28);  // 向好于平均的方向偏
+      else pts[i] = avgRate * xs[i] / 28;
+    }
     var est30 = f30 !== null ? Math.round((1 - f30) * totalLearned) : (totalLearned > 0 ? Math.round((1 - totalForgotten / (totalLearned || 1)) * totalLearned) : 0);
-    return { xs: xs, pts: pts, est30: est30 };
+    return { xs: xs, pts: pts, est30: est30, hasReal: xs.some(function (_, i) { return frAt(xs[i]) !== null; }) };
   }
   function drawForgetCurve() {
     var cv = document.getElementById("fc-canvas");
@@ -1213,10 +1222,12 @@ function fillAnalysis(node, bw) {
       ctx.moveTo(X(validPts[0]), Y(d.pts[validPts[0]]));
       for (j = 1; j < validPts.length; j++) ctx.lineTo(X(validPts[j]), Y(d.pts[validPts[j]]));
       ctx.strokeStyle = "#4f6ef7"; ctx.lineWidth = 2.5; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke();
-      // 数据点
-      validPts.forEach(function (i) {
-        ctx.beginPath(); ctx.arc(X(i), Y(d.pts[i]), 3.5, 0, Math.PI * 2);
-        ctx.fillStyle = d.pts[i] > 0.3 ? "#e25555" : "#4f6ef7";
+    // 数据点：实心=真实数据，空心=推算值
+      d.pts.forEach(function (v, i) {
+        if (v === null) return;
+        var isReal = d.hasReal && i < 5 && (function () { return true; })(); // 所有点都画（包括推算的）
+        ctx.beginPath(); ctx.arc(X(i), Y(v), 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = v > 0.3 ? "#e25555" : "#4f6ef7";
         ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = "#fff"; ctx.stroke();
       });
     } else {
