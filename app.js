@@ -6,7 +6,7 @@
   
   /* ---------- Service Worker 更新检测（仅新版弹窗，点稍后 2h 抑制） ---------- */
   var CHANGELOG = [
-    { ver: "20260730n", note: "记忆曲线恢复7天一档 + 更新弹窗仅新版触发" },
+    { ver: "20260730o", note: "记忆曲线恢复7天一档 + 更新弹窗仅新版触发" },
     { ver: "20260729e", note: "学习排序改为同族组块(同根词连续出现便于对比) + favicon.ico 补齐" },
     { ver: "20260729d", note: "PWA桌面应用自动更新提示(顶部横幅一键刷新)" },
     { ver: "20260729c", note: "打破固定背诵顺序：族内打乱+族间随机+复习±5%扰动" },
@@ -110,7 +110,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260730n";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
+  var APP_VER = "20260730o";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
@@ -1141,7 +1141,7 @@ function fillAnalysis(node, bw) {
     for (var w in rs) { if (startOfDay(rs[w].firstLearned) === sod) todayTotal++; }
     document.getElementById("learn-counter").textContent = "今日已学 " + todayTotal + " 词" + (learnQueue.length ? " · 当前第 " + (learnIdx + 1) + "/" + learnQueue.length : "");
     updateCacheBadge(id);
-    if (!learnQueue.length) {
+    if (!learnQueue.length || learnIdx >= learnQueue.length) {
       var limit = state.settings.dailyNewLimit || 0;
       if (limit > 0 && newWords(id, 0).length > 0) {
         stage.innerHTML = '<div class="panel" style="text-align:center">🎯 今日新词目标（' + limit + '词）已完成！<br><small style="color:var(--ink-faint)">明天再来学新的，或去复习旧词吧。</small></div>';
@@ -1154,7 +1154,7 @@ function fillAnalysis(node, bw) {
     var node = buildCard(bw); stage.appendChild(node); prepareCard(bw, node);
   }
   document.getElementById("learn-rate-controls").addEventListener("click", function (e) {
-    var btn = e.target.closest(".rate"); if (!btn || !learnQueue.length) return;
+    var btn = e.target.closest(".rate"); if (!btn || !learnQueue.length || learnIdx >= learnQueue.length) return;
     var rating = btn.dataset.rate, bw = learnQueue[learnIdx];
     ensureSession();
     scheduleReview(curBook(), bw.w, rating);
@@ -1172,14 +1172,14 @@ function fillAnalysis(node, bw) {
     var stage = document.getElementById("review-stage"), controls = document.getElementById("rate-controls");
     stage.innerHTML = ""; controls.hidden = true;
     document.getElementById("review-counter").textContent = (reviewQueue.length ? reviewRated + 1 : 0) + " / " + reviewQueue.length;
-    if (!reviewQueue.length) { stage.innerHTML = '<div class="panel" style="text-align:center">今日复习全部完成，明天见！</div>'; return; }
+    if (!reviewQueue.length || reviewIdx >= reviewQueue.length) { stage.innerHTML = '<div class="panel" style="text-align:center">今日复习全部完成，明天见！</div>'; return; }
     var bw = reviewQueue[reviewIdx];
     var node = buildCard(bw);
     node.addEventListener("click", function () { controls.hidden = false; });
     stage.appendChild(node); prepareCard(bw, node);
   }
   document.getElementById("rate-controls").addEventListener("click", function (e) {
-    var btn = e.target.closest(".rate"); if (!btn || !reviewQueue.length) return;
+    var btn = e.target.closest(".rate"); if (!btn || !reviewQueue.length || reviewIdx >= reviewQueue.length) return;
     var rating = btn.dataset.rate, bw = reviewQueue[reviewIdx];
     ensureSession();
     scheduleReview(curBook(), bw.w, rating);
