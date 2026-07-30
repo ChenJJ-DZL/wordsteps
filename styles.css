@@ -272,7 +272,7 @@ body {
 .due-preview .empty { background: none; color: var(--ink-faint); }
 
 /* ---------- Subhead / counters ---------- */
-.subhead { flex: none; display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 12px; flex-wrap: wrap; }
+.subhead { flex: none; display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 12px; flex-wrap: nowrap; }
 .subhead label { font-size: 14px; color: var(--ink-soft); display: flex; align-items: center; gap: 8px; }
 .subhead select, .filter-row select {
   border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; background: var(--surface); color: var(--ink); font-size: 15px;
