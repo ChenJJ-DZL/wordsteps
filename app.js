@@ -648,11 +648,11 @@
   function fetchAudio(url, cb) {
     try {
       fetch(url, { cache: "force-cache" }).then(function (r) {
-        if (!r.ok) { if (cb) cb(null); return; }
+        if (!r.ok) throw new Error("fetch-fail");
         return r.blob();
       }).then(function (blob) {
         if (!blob) { if (cb) cb(null); return; }
-        idbAudioSet(url, blob);      // 持久化到 IndexedDB
+        idbAudioSet(url, blob);
         if (cb) cb(blob);
       }).catch(function () { if (cb) cb(null); });
     } catch (e) { if (cb) cb(null); }
@@ -1092,6 +1092,7 @@ function fillAnalysis(node, bw) {
       el.textContent = "下载中 " + done + "/" + total + (fail ? "（" + fail + "失败）" : "");
     }
     function next(i) {
+      if (!_precaching) return;
       if (i >= words.length) {
         _precaching = false;
         updateCacheBadge(id);
@@ -1099,8 +1100,10 @@ function fillAnalysis(node, bw) {
       }
       var url = audioUrl(words[i]);
       idbAudioGet(url, function (blob) {
+        if (!_precaching) return;
         if (blob) { done++; next(i + 1); tick(); return; }
         fetchAudio(url, function (result) {
+          if (!_precaching) return;
           if (result) done++; else fail++;
           tick(); next(i + 1);
         });
