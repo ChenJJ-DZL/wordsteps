@@ -297,6 +297,8 @@
   }
   // 增量模式：这些词本始终显示全量（基础/初中），其余从「之前所有词本并集」中剔除已学底层词
   var FULL_BOOKS = { ogden: 1, chuzhong: 1 };
+  // 兜底：如果上方定义缺失（缓存旧版），从全局读取
+  if (typeof FULL_BOOKS === 'undefined' && window.FULL_BOOKS) { var FULL_BOOKS = window.FULL_BOOKS; }
   // 差集比对用的归一化键：转小写、去非字母数字（容忍大小写/标点差异）
   function wkey(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
   // 计算「排在 bookId 之前的所有词本」的词形键并集（增量差集的「已掌握底层」）
