@@ -425,11 +425,6 @@
     return s.forgotten / s.total;
   }
   function recordForget(r) {
-    // SRS引擎用：按间隔段分桶
-    var b = closestBracket(r.interval);
-    if (!state.forgetStats[b]) state.forgetStats[b] = { total: 0, forgotten: 0 };
-    state.forgetStats[b].total++;
-    state.forgetStats[b].forgotten++;
     // 遗忘曲线用：按首次学习后的自然日分桶
     var days = Math.floor((Date.now() - r.firstLearned) / DAY);
     var dayKey = days === 0 ? "当天" : days + "天后";
@@ -437,6 +432,19 @@
     if (!state.dayForgetStats[dayKey]) state.dayForgetStats[dayKey] = { total: 0, forgotten: 0 };
     state.dayForgetStats[dayKey].total++;
     state.dayForgetStats[dayKey].forgotten++;
+    // SRS引擎用：按间隔段分桶
+    var b = closestBracket(r.interval);
+    if (!state.forgetStats[b]) state.forgetStats[b] = { total: 0, forgotten: 0 };
+    state.forgetStats[b].total++;
+    state.forgetStats[b].forgotten++;
+  }
+  function recordReview(r) {
+    // 每次复习（含认识/模糊）都计入 dayForgetStats.total，但不计入 forgotten
+    var days = Math.floor((Date.now() - r.firstLearned) / DAY);
+    var dayKey = days === 0 ? "当天" : days + "天后";
+    if (!state.dayForgetStats) state.dayForgetStats = {};
+    if (!state.dayForgetStats[dayKey]) state.dayForgetStats[dayKey] = { total: 0, forgotten: 0 };
+    state.dayForgetStats[dayKey].total++;
   }
   // 将旧格式（intervalIdx）懒迁移为新格式（interval 毫秒）
   function migrateRecord(r) {
@@ -460,15 +468,17 @@
     var iv = r.interval || T_4H;
     // 首次复习(间隔=T_4H 且 reps=0)：认识→进入日级循环(1天)，不认识→重置4小时
     if (r.reps === 0 && rating === "know") {
-      iv = T_1D; r.status = "review";
+      iv = T_1D; r.status = "review"; recordReview(r);
     } else if (rating === "know") {
-      var fr = getForgetRate(iv);            // 读取该间隔段的实际遗忘率
+      var fr = getForgetRate(iv);
       var growth = fr === null ? 2 : (fr > 0.3 ? 1.5 : (fr < 0.05 ? 2.5 : 2));
       iv = Math.min(Math.round(iv * growth), 120 * DAY);
       r.status = iv >= 60 * DAY ? "mastered" : "review";
+      recordReview(r);
     } else if (rating === "fuzzy") {
       iv = Math.max(Math.round(iv * 0.5), T_4H);
       r.status = "review";
+      recordReview(r);
     } else {
       recordForget(r);                        // 追踪：记录遗忘事件（双层：间隔段+自然日）
       iv = T_10MIN; r.lapses = (r.lapses || 0) + 1;
