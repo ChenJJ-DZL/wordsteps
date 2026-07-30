@@ -278,7 +278,8 @@ body {
   border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; background: var(--surface); color: var(--ink); font-size: 15px;
 }
 .subhead .right-group { display: flex; align-items: center; gap: 12px; }
-.cache-badge { font-size: 13px; color: var(--ink-faint); white-space: nowrap; }
+.cache-btn { font-size: 13px; color: var(--ink-faint); white-space: nowrap; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 3px 10px; cursor: pointer; }
+.cache-btn:hover { background: var(--primary-soft); color: var(--primary); }
 .counter { font-size: 14px; color: var(--ink-faint); }
 
 /* ---------- Flip card ---------- */

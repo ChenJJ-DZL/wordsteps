@@ -6,7 +6,7 @@
   
   /* ---------- Service Worker 更新检测（仅新版弹窗，点稍后 2h 抑制） ---------- */
   var CHANGELOG = [
-    { ver: "20260730o", note: "记忆曲线恢复7天一档 + 更新弹窗仅新版触发" },
+    { ver: "20260730p", note: "记忆曲线恢复7天一档 + 更新弹窗仅新版触发" },
     { ver: "20260729e", note: "学习排序改为同族组块(同根词连续出现便于对比) + favicon.ico 补齐" },
     { ver: "20260729d", note: "PWA桌面应用自动更新提示(顶部横幅一键刷新)" },
     { ver: "20260729c", note: "打破固定背诵顺序：族内打乱+族间随机+复习±5%扰动" },
@@ -110,7 +110,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260730o";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
+  var APP_VER = "20260730p";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
@@ -992,13 +992,72 @@ function fillAnalysis(node, bw) {
     updateCacheBadge(id);
     tick();
   }
+  var _precaching = false;
   function updateCacheBadge(id) {
-    var b = BOOKS_DATA[id]; var el = document.getElementById("cache-badge");
+    var b = BOOKS_DATA[id], el = document.getElementById("cache-badge");
     if (!b || !el) return;
-    var cached = 0;
-    b.words.forEach(function (v) { var c = state.cache[v.w]; if (c && c.loaded && !c.error) cached++; });
-    el.textContent = "缓存 " + cached + " / " + b.words.length;
+    var total = b.words.length, cached = 0, audios = 0;
+    b.words.forEach(function (v) {
+      var c = state.cache[v.w]; if (c && c.loaded && !c.error) cached++;
+      var url = c ? (state.settings.accent === "uk" ? c.audio_uk : c.audio_us) : null;
+      if (url) audios++;
+    });
+    // 统计 IDB 中已缓存的音频（异步，用下一轮渲染更新）
+    idbAudioReady(function (db) {
+      if (!db) return;
+      var tx = db.transaction("blobs", "readonly");
+      var store = tx.objectStore("blobs"), audioOk = 0;
+      var tasks = b.words.map(function (v) {
+        return new Promise(function (resolve) {
+          var url = (state.cache[v.w] || {})[state.settings.accent === "uk" ? "audio_uk" : "audio_us"] || "";
+          if (!url) { resolve(); return; }
+          store.get(url).onsuccess = function (e) { if (e.target.result) audioOk++; resolve(); };
+        });
+      });
+      Promise.all(tasks).then(function () {
+        if (_precaching) return;  // 预下载中不覆盖文字
+        var info = cached + " / " + total + " 词 · 🎵 " + audioOk + " / " + audios;
+        el.textContent = info;
+      });
+    });
+    // 同步先写词缓存数（IDB 异步写入下一帧）
+    el.textContent = "缓存 " + cached + " / " + total + " 词";
+    el.style.display = "";
   }
+  // 预下载全部音频到 IndexedDB（模拟离线地图包）
+  function precacheAllAudio(id) {
+    var b = BOOKS_DATA[id]; if (!b) return;
+    if (_precaching) return;
+    _precaching = true;
+    var el = document.getElementById("cache-badge");
+    var words = b.words.filter(function (v) { return state.cache[v.w] && (state.cache[v.w].audio_us || state.cache[v.w].audio_uk); });
+    var total = words.length, done = 0, fail = 0;
+    function tick() {
+      if (!el) return;
+      el.textContent = "📦 下载中 " + done + "/" + total + (fail ? "（" + fail + "失败）" : "");
+    }
+    function next(i) {
+      if (i >= words.length) {
+        _precaching = false;
+        if (el) el.textContent = "✅ 离线就绪 " + (total - fail) + " 首";
+        return;
+      }
+      var url = state.cache[words[i].w][state.settings.accent === "uk" ? "audio_uk" : "audio_us"] || "";
+      if (!url) { next(i + 1); return; }
+      idbAudioGet(url, function (blob) {
+        if (blob) { done++; next(i + 1); tick(); return; }
+        fetchAudio(url, function (result) {
+          if (result) done++; else fail++;
+          tick(); next(i + 1);
+        });
+      });
+    }
+    tick(); next(0);
+  }
+  // 点击缓存徽章触发预下载
+  document.getElementById("cache-badge").addEventListener("click", function () {
+    precacheAllAudio(curBook());
+  });
 
   /* ---------- 视图切换 ---------- */
   function showView(name) {

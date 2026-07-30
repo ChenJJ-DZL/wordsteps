@@ -9,7 +9,7 @@
   <link rel="icon" href="favicon.ico" sizes="any" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon-512.png" />
-  <link rel="stylesheet" href="styles.css?v=20260730o" />
+  <link rel="stylesheet" href="styles.css?v=20260730p" />
 </head>
 <body>
   <div id="update-banner" style="display:none">
@@ -129,7 +129,7 @@
   <main id="view-learn" class="view">
     <div class="subhead">
       <span class="counter" id="learn-counter">0 / 0</span>
-      <span class="cache-badge" id="cache-badge"></span>
+      <button class="cache-btn" id="cache-badge" title="预下载全部单词音频，实现完全离线"></button>
     </div>
     <div class="card-stage" id="learn-stage"></div>
     <div class="rate-controls" id="learn-rate-controls">
@@ -237,9 +237,9 @@
 
   <audio id="player" hidden></audio>
 
-  <script src="books/manifest.js?v=20260730o"></script>
-  <script src="books/en_defs.js?v=20260730o"></script>
-  <script src="app.js?v=20260730o"></script>
+  <script src="books/manifest.js?v=20260730p"></script>
+  <script src="books/en_defs.js?v=20260730p"></script>
+  <script src="app.js?v=20260730p"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
