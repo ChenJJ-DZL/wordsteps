@@ -1,5 +1,5 @@
 // WordSteps service worker — 缓存应用外壳，运行时缓存词库，支持离线使用。
-const CACHE = 'wordsteps-v49';
+const CACHE = 'wordsteps-v50';
 const SHELL = [
   './index.html',
   './styles.css',
@@ -80,7 +80,7 @@ self.addEventListener('fetch', function (e) {
     return;
   }
 
-  // 静态资源与词库：缓存优先，缺失时网络拉取并写入缓存（首次访问后离线可用）
+  // 静态资源与词库：缓存优先，缺失时网络拉取并写入缓存
   e.respondWith(
     caches.match(req).then(function (r) {
       if (r) return r;
@@ -90,6 +90,8 @@ self.addEventListener('fetch', function (e) {
           caches.open(CACHE).then(function (c) { c.put(req, cp); });
         }
         return res;
+      }).catch(function () {
+        return new Response("(offline)", { status: 503 });
       });
     })
   );
