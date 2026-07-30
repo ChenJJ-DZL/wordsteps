@@ -1286,7 +1286,7 @@ function fillAnalysis(node, bw) {
     // 当天已学新词数（从 records 计数，跨会话累计）
     var sod = startOfDay(now), rs = bookRecs(id), todayTotal = 0;
     for (var w in rs) { if (startOfDay(rs[w].firstLearned) === sod) todayTotal++; }
-    document.getElementById("learn-counter").textContent = "今日已学 " + todayTotal + " 词" + (learnQueue.length ? " · 当前第 " + (learnIdx + 1) + "/" + learnQueue.length : "");
+    document.getElementById("learn-counter").textContent = "今日已学 " + todayTotal + " 词";
     updateCacheBadge(id);
     if (!learnQueue.length || learnIdx >= learnQueue.length) {
       var limit = state.settings.dailyNewLimit || 0;
