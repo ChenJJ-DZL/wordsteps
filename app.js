@@ -1043,17 +1043,18 @@ function fillAnalysis(node, bw) {
   function updateCacheBadge(id) {
     var b = BOOKS_DATA[id], el = document.getElementById("cache-badge");
     if (!b || !el) return;
-    var total = b.words.length, cached = 0, audios = 0;
+    if (_precaching) return;  // 预下载中不覆盖文字
+    var total = b.words.length, cached = 0, audios = 0, audioOk = 0;
+    // 先快速统计词缓存数和音频URL数（同步）
     b.words.forEach(function (v) {
       var c = state.cache[v.w]; if (c && c.loaded && !c.error) cached++;
       var url = c ? (state.settings.accent === "uk" ? c.audio_uk : c.audio_us) : null;
       if (url) audios++;
     });
-    // 统计 IDB 中已缓存的音频（异步，用下一轮渲染更新）
+    // 异步统计 IDB 中已缓存的音频数
     idbAudioReady(function (db) {
       if (!db) return;
-      var tx = db.transaction("blobs", "readonly");
-      var store = tx.objectStore("blobs"), audioOk = 0;
+      var tx = db.transaction("blobs", "readonly"), store = tx.objectStore("blobs");
       var tasks = b.words.map(function (v) {
         return new Promise(function (resolve) {
           var url = (state.cache[v.w] || {})[state.settings.accent === "uk" ? "audio_uk" : "audio_us"] || "";
@@ -1062,13 +1063,12 @@ function fillAnalysis(node, bw) {
         });
       });
       Promise.all(tasks).then(function () {
-        if (_precaching) return;  // 预下载中不覆盖文字
-        var info = cached + " / " + total + " 词 · 🎵 " + audioOk + " / " + audios;
-        el.textContent = info;
+        if (_precaching) return;
+        el.textContent = "缓存 " + cached + "/" + total + " 词 · " + audioOk + "/" + audios + " 音";
       });
     });
-    // 同步先写词缓存数（IDB 异步写入下一帧）
-    el.textContent = "缓存 " + cached + " / " + total + " 词";
+    // 同步先写（下一帧异步 IDB 结果覆盖）
+    el.textContent = "缓存 " + cached + "/" + total + " 词";
     el.style.display = "";
   }
   // 预下载全部音频到 IndexedDB（模拟离线地图包）
@@ -1077,19 +1077,21 @@ function fillAnalysis(node, bw) {
     if (_precaching) return;
     _precaching = true;
     var el = document.getElementById("cache-badge");
-    var words = b.words.filter(function (v) { return state.cache[v.w] && (state.cache[v.w].audio_us || state.cache[v.w].audio_uk); });
+    // 只计有音频URL的词，与updateCacheBadge中audios口径一致
+    var acc = state.settings.accent === "uk" ? "audio_uk" : "audio_us";
+    var words = b.words.filter(function (v) { return state.cache[v.w] && state.cache[v.w][acc]; });
     var total = words.length, done = 0, fail = 0;
     function tick() {
       if (!el) return;
-      el.textContent = "📦 下载中 " + done + "/" + total + (fail ? "（" + fail + "失败）" : "");
+      el.textContent = "下载中 " + done + "/" + total + (fail ? "（" + fail + "失败）" : "");
     }
     function next(i) {
       if (i >= words.length) {
         _precaching = false;
-        if (el) el.textContent = "✅ 离线就绪 " + (total - fail) + " 首";
+        if (el) el.textContent = "就绪 " + (total - fail) + "/" + total + " 首";
         return;
       }
-      var url = state.cache[words[i].w][state.settings.accent === "uk" ? "audio_uk" : "audio_us"] || "";
+      var url = state.cache[words[i].w][acc] || "";
       if (!url) { next(i + 1); return; }
       idbAudioGet(url, function (blob) {
         if (blob) { done++; next(i + 1); tick(); return; }
