@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iPhone 17 Pro 预览 — WordSteps</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      display: flex; justify-content: center; align-items: center;
+      min-height: 100vh;
+      background: #1a1a2e;
+      font-family: -apple-system, sans-serif;
+    }
+    .phone-wrap {
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+    }
+    .phone-label {
+      color: #8a8a9a; font-size: 13px; letter-spacing: 0.5px;
+    }
+    .phone-frame {
+      width: 393px; height: 852px;
+      border-radius: 44px;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 3px #1d1d1f,
+        0 0 0 6px #2d2d2f,
+        0 0 0 8px #3a3a3c,
+        0 20px 60px rgba(0,0,0,0.5);
+      background: #fff;
+    }
+    .phone-frame iframe {
+      width: 100%; height: 100%; border: none;
+    }
+    /* Dynamic Island */
+    .phone-frame {
+      position: relative;
+    }
+    .phone-frame::before {
+      content: '';
+      position: absolute; top: 10px; left: 50%;
+      transform: translateX(-50%);
+      width: 126px; height: 34px;
+      background: #1d1d1f; border-radius: 20px;
+      z-index: 10; pointer-events: none;
+    }
+    @media (max-height: 900px) {
+      .phone-frame { width: 320px; height: 694px; border-radius: 36px; }
+      .phone-frame::before { width: 100px; height: 28px; top: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="phone-wrap">
+    <div class="phone-label">iPhone 17 Pro · WordSteps</div>
+    <div class="phone-frame">
+      <iframe src="https://chenjj-dzl.github.io/wordsteps/"
+              sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-modals"
+              title="WordSteps"></iframe>
+    </div>
+  </div>
+</body>
+</html>
