@@ -287,11 +287,13 @@
   }
   // 构建同族词索引：root → [{w,zh,ipa_us}]
   function buildFamIndex(b) {
-    var idx = {}; b.words.forEach(function (v) {
-      var r = v.root; if (!r) return;
-      (idx[r] = idx[r] || []).push({w:v.w, zh:v.zh, ipa_us:v.ipa_us});
-    });
-    b._fam = idx;
+    try {
+      var idx = {}; b.words.forEach(function (v) {
+        var r = v.root; if (!r) return;
+        (idx[r] = idx[r] || []).push({w:v.w, zh:v.zh, ipa_us:v.ipa_us});
+      });
+      b._fam = idx;
+    } catch (e) { console.error("buildFamIndex failed:", e); }
   }
   // 增量模式：这些词本始终显示全量（基础/初中），其余从「之前所有词本并集」中剔除已学底层词
   // 差集比对用的归一化键：转小写、去非字母数字（容忍大小写/标点差异）
@@ -1090,7 +1092,8 @@ function fillAnalysis(node, bw) {
     tick(); next(0);
   }
   // 点击缓存徽章触发预下载
-  document.getElementById("cache-badge").addEventListener("click", function () {
+  var _cacheBadgeBtn = document.getElementById("cache-badge");
+  if (_cacheBadgeBtn) _cacheBadgeBtn.addEventListener("click", function () {
     precacheAllAudio(curBook());
   });
 
@@ -1429,9 +1432,15 @@ function fillAnalysis(node, bw) {
   /* ---------- 单词本选择器 ---------- */
   var homeSel = document.getElementById("home-book"), learnSel = document.getElementById("learn-book");
   function fillBookSelect(sel) {
+    if (!sel) return;
     sel.innerHTML = "";
+    if (!REGISTRY.length) { sel.innerHTML = '<option>加载中…</option>'; return; }
     REGISTRY.forEach(function (r) { var o = document.createElement("option"); o.value = r.id; o.textContent = bookLabel(r.id); sel.appendChild(o); });
     sel.value = curBook();
+  }
+  // 首次填充后如果仍然为空（manifest.js 异步加载未完成），1s 后重试
+  if (!REGISTRY.length || !homeSel.options.length) {
+    setTimeout(function () { fillBookSelect(homeSel); if (learnSel) fillBookSelect(learnSel); refreshBookLabels(); }, 1000);
   }
   homeSel.addEventListener("change", function () { state.settings.book = homeSel.value; saveState(); if (learnSel) learnSel.value = curBook(); renderHome(); });
   if (learnSel) learnSel.addEventListener("change", function () { state.settings.book = learnSel.value; saveState(); homeSel.value = curBook(); showView("learn"); });
@@ -1515,7 +1524,8 @@ function fillAnalysis(node, bw) {
     });
   }
   // 启动即预载全部词本，读出各本真实词数（动态「名称(N词)」），加载完成后自动刷新下拉框/历史标题
+  console.log("[vocab] REGISTRY count:", REGISTRY.length, "current book:", curBook());
   REGISTRY.forEach(function (r) { loadBook(r.id, function () {}); });
   showView("home");
-  console.log("[vocab] books:", REGISTRY.length, "current:", curBook());
+  console.log("[vocab] init done, books:", REGISTRY.length, "userVer:", APP_VER);
 })();
