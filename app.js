@@ -1033,29 +1033,6 @@ function fillAnalysis(node, bw) {
       document.getElementById("ms-time").textContent = mins + "m";
       document.getElementById("ms-lapses").textContent = s.lapses;
       document.getElementById("home-review-sub").textContent = s.due + " 个单词待复习";
-      // 计算即将到来的复习（4小时内 + 24小时内）
-      var now = Date.now(), upcoming4h = 0, upcoming24h = 0;
-      var rs = bookRecs(id);
-      for (var w in rs) {
-        var nr = rs[w].nextReview;
-        if (nr > now && nr <= now + T_4H) upcoming4h++;
-        if (nr > now && nr <= now + T_1D) upcoming24h++;
-      }
-      if (s.due > 0) {
-        // 有到期复习
-      } else if (upcoming4h > 0) {
-        var nextTime = new Date(now + T_4H);
-        document.getElementById("home-review-sub").textContent = "约 " + upcoming4h + " 个单词即将需复习（" + nextTime.getHours() + ":" + (nextTime.getMinutes()<10?"0":"") + nextTime.getMinutes() + " 左右）";
-      } else {
-        document.getElementById("home-review-sub").textContent = upcoming24h + " 个单词复习中（最晚今夜到齐）";
-      }
-      // 上次学习时间
-      var lastSession = state.sessions[0];
-      if (lastSession) {
-        var elapsed = now - lastSession.ts;
-        var agoStr = elapsed < 60000 ? "刚刚" : elapsed < 3600000 ? Math.round(elapsed / 60000) + "分钟前" : elapsed < 86400000 ? Math.round(elapsed / 3600000) + "小时前" : Math.round(elapsed / 86400000) + "天前";
-        document.getElementById("home-review-sub").textContent += " · 上次 " + agoStr;
-      }
       var limit = state.settings.dailyNewLimit || 0, totalNew = newWords(id, 0).length;
       document.getElementById("home-learn-sub").textContent = totalNew + " 个新词待学" + (limit > 0 ? "（今日上限 " + limit + "）" : "");
       document.getElementById("home-limit").value = limit;
