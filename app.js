@@ -96,7 +96,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260801c";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
+  var APP_VER = "20260801d";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
@@ -659,12 +659,13 @@
       } catch (e) { if (cb) cb(false); }
     });
   }
-  // 生成词典音频 URL（离线包与兜底用）
+  // 生成音频 URL（离线包与兜底用）——有道 TTS：国内可达、批量稳定、美音 type=2 / 英音 type=1
   function genAudioUrl(w, acc) {
     if (!w) return "";
-    return "https://api.dictionaryapi.dev/media/pronunciations/en/" + encodeURIComponent(w) + "-" + acc + ".mp3";
+    var t = acc === "uk" ? 1 : 2;
+    return "https://dict.youdao.com/dictvoice?audio=" + encodeURIComponent(w) + "&type=" + t;
   }
-  // 三级取音频 URL：state.cache → en_defs 离线包 → 生成 URL
+  // 三级取音频 URL：state.cache → en_defs 真人录音 → 有道 TTS 兜底
   function audioUrlFor(w, accent) {
     var key = accent === "uk" ? "audio_uk" : "audio_us";
     var c = state.cache[w];
@@ -1122,7 +1123,7 @@ function fillAnalysis(node, bw) {
       if (!_precaching) return;
       if (idx >= total) { _precaching = false; done2(); return; }
       var w = words[idx];
-      var url = (state.cache[w.w] || {})[acc] || "https://api.dictionaryapi.dev/media/pronunciations/en/" + encodeURIComponent(w.w) + "-us.mp3";
+      var url = audioUrlFor(w.w, state.settings.accent);
       idbAudioGet(url, function (blob) {
         if (blob) { done++; idx++; show(); run(); return; }
         fetchAudio(url, function () { done++; idx++; show(); run(); });
@@ -1181,12 +1182,11 @@ function fillAnalysis(node, bw) {
         var k = normJs(v.w);
         if (!k || words[k]) return;
         words[k] = 1;
-        var d = EN_DEFS[k] || {};
-        // 只收集词典真实存在的音频 URL（猜测的 {word}-{accent}.mp3 大多 404/502）
-        var us = d.audio_us || "";
+        // 有道 TTS：每个词都有音频，批量稳定（dictionaryapi.dev 批量必 502 限流）
+        var us = genAudioUrl(v.w, "us");
         if (us && !seen[us]) { seen[us] = 1; urls.push(us); }
         if (includeUk) {
-          var uk = d.audio_uk || "";
+          var uk = genAudioUrl(v.w, "uk");
           if (uk && uk !== us && !seen[uk]) { seen[uk] = 1; urls.push(uk); }
         }
       });
@@ -1206,7 +1206,7 @@ function fillAnalysis(node, bw) {
           if (offlinePkg.cancel) { finish(); return; }
           if (blob) {
             done++; if (onProg) onProg(done, fail, total);
-            setTimeout(function () { work(i + 1, 0); }, 80);  // 微间隔防限流
+            setTimeout(function () { work(i + 1, 0); }, 120);  // 微间隔防限流
             return;
           }
           fetchAudio(url, function (result, stored) {
@@ -1219,7 +1219,7 @@ function fillAnalysis(node, bw) {
             }
             else { fail++; }   // 重试仍失败（URL 不存在等）
             if (onProg) onProg(done, fail, total);
-            setTimeout(function () { work(i + 1, 0); }, 80);
+            setTimeout(function () { work(i + 1, 0); }, 120);
           });
         });
       }
