@@ -104,7 +104,7 @@
   var EB = [T_10MIN, T_1D, 2 * DAY, 4 * DAY, 7 * DAY, 15 * DAY, 30 * DAY, 60 * DAY, 120 * DAY];
 
   /* ---------- 状态 / 版本化迁移 ---------- */
-  var SCHEMA_VER = 4;   // schema 版本：v4=双层遗忘统计(间隔段+自然日分桶)
+  var SCHEMA_VER = 5;   // schema 版本：v5=重建dayForgetStats(旧数据total=forgotten导致曲线恒为0)
   function defaultSkeleton() {
     return {
       schemaVer: SCHEMA_VER,
@@ -156,7 +156,26 @@
     0: migrate_0_to_1,
     1: function(r) { return r; },                                           // v1→v2 占位：数据格式正确，无需转换
     2: function(r) { r.forgetStats = r.forgetStats || {}; return r; },
-    3: function(r) { r.dayForgetStats = r.dayForgetStats || {}; return r; }
+    3: function(r) { r.dayForgetStats = r.dayForgetStats || {}; return r; },
+    4: function(r) {
+      // v4→v5: 重建 dayForgetStats（旧代码只在"不认识"时记录 total+forgotten → 比例恒为0 → 曲线贴0）
+      var dfs = {};
+      var books = r.books || {};
+      for (var bid in books) {
+        var recs = books[bid].records || {};
+        for (var w in recs) {
+          var rec = recs[w];
+          if (!rec || !rec.firstLearned || !rec.lastReviewed) continue;
+          var days = Math.floor((rec.lastReviewed - rec.firstLearned) / DAY);
+          var key = days <= 0 ? "当天" : days + "天后";
+          if (!dfs[key]) dfs[key] = { total: 0, forgotten: 0 };
+          dfs[key].total++;
+          if (rec.lastRating === "unknown" || (rec.lapses && rec.lapses > 0)) dfs[key].forgotten++;
+        }
+      }
+      r.dayForgetStats = dfs;
+      return r;
+    }
   };
   var _loadedOk = false;   // 标记本次加载是否成功（用于判断是否需要显示恢复提示）
   function loadState() {
