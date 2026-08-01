@@ -1177,34 +1177,27 @@ function fillAnalysis(node, bw) {
     }
     var xs = [0, 7, 14, 21, 28];
     var pts = xs.map(function (d) { return rrAt(d); });
-    // 统计总量（用于推算和 est30）
-    var totalLearned = 0, totalForgotten = 0, r30 = rrAt(30);
+    var totalLearned = 0, totalForgotten = 0;
     for (var k in dfs) { totalLearned += dfs[k].total; totalForgotten += dfs[k].forgotten; }
     var overallRate = totalLearned >= 5 ? (totalLearned - totalForgotten) / totalLearned : 0.95;
-    // 填补缺失点：
-    // 1) 已知两点之间 → 线性插值
-    // 2) 仅"今天"有数据 → 指数衰减 R(t)=R₀×overallRate^(t/7)
-    // 3) 无任何数据 → 全用 overallRate
-    var firstReal = -1, lastReal = -1;
-    for (var i = 0; i < pts.length; i++) { if (pts[i] !== null) { if (firstReal < 0) firstReal = i; lastReal = i; } }
-    if (firstReal >= 0) {
-      // 已知点之间线性插值 + 超出部分用指数衰减延续
+    // 7天衰减因子：优先用真实「7天后」数据；否则用艾宾浩斯典型衰减(≈0.75/7天)
+    var decay7 = rrAt(7);
+    if (decay7 === null) decay7 = overallRate >= 0.85 ? 0.75 : Math.max(0.5, overallRate * 0.8);
+    var first = -1, last = -1;
+    for (var i = 0; i < pts.length; i++) { if (pts[i] !== null) { if (first < 0) first = i; last = i; } }
+    if (first >= 0) {
+      // 艾宾浩斯指数模型：两点间指数插值 + 末段指数衰减（R(t)=R0×decay7^(t/7)）
       for (var i2 = 0; i2 < pts.length; i2++) {
         if (pts[i2] !== null) continue;
-        var L = null, R = null;
-        for (var j = i2 - 1; j >= 0; j--) { if (pts[j] !== null) { L = pts[j]; break; } }
-        for (var k2 = i2 + 1; k2 < pts.length; k2++) { if (pts[k2] !== null) { R = pts[k2]; break; } }
+        var L = null, Li = -1, R = null, Ri = -1;
+        for (var j = i2 - 1; j >= 0; j--) { if (pts[j] !== null) { L = pts[j]; Li = j; break; } }
+        for (var k2 = i2 + 1; k2 < pts.length; k2++) { if (pts[k2] !== null) { R = pts[k2]; Ri = k2; break; } }
         if (L !== null && R !== null) {
-          // 线性插值
-          var li = -1, ri = -1;
-          for (var ii = 0; ii < pts.length; ii++) {
-            if (pts[ii] !== null && ii < i2 && (li < 0 || xs[ii] > xs[li])) li = ii;
-            if (pts[ii] !== null && ii > i2 && (ri < 0 || xs[ii] < xs[ri])) ri = ii;
-          }
-          pts[i2] = L + (R - L) * (xs[i2] - xs[li]) / (xs[ri] - xs[li]);
+          // 指数插值：y = L × (R/L)^((x-xL)/(xR-xL))，曲线下凸、首段陡降后平缓
+          pts[i2] = Math.max(0.05, L * Math.pow(R / L, (xs[i2] - xs[Li]) / (xs[Ri] - xs[Li])));
         } else if (L !== null) {
-          // 超出末尾 → 指数衰减
-          pts[i2] = Math.max(0.05, L * Math.pow(overallRate, (xs[i2] - xs[lastReal]) / 7));
+          // 末段指数衰减：每 7 天乘 decay7
+          pts[i2] = Math.max(0.05, L * Math.pow(decay7, (xs[i2] - xs[Li]) / 7));
         } else {
           pts[i2] = overallRate;
         }
@@ -1213,7 +1206,10 @@ function fillAnalysis(node, bw) {
       // 无任何真实数据 → 全部填 overallRate (新用户)
       for (var i3 = 0; i3 < pts.length; i3++) pts[i3] = overallRate;
     }
-    var est30 = r30 !== null ? Math.round(r30 * totalLearned) : (totalLearned > 0 ? Math.round(overallRate * totalLearned) : 0);
+    // est30: 30天保持率 × 总学习数（30天点按指数外推）
+    var r30m = rrAt(30);
+    if (r30m === null) r30m = last >= 0 ? Math.max(0.05, pts[last] * Math.pow(decay7, (30 - xs[last]) / 7)) : overallRate;
+    var est30 = totalLearned > 0 ? Math.round(r30m * totalLearned) : 0;
     return { xs: xs, pts: pts, est30: est30 };
   }
   function drawForgetCurve() {
@@ -1250,15 +1246,19 @@ function fillAnalysis(node, bw) {
       grad.addColorStop(0, "rgba(79,110,247,0.30)");
       grad.addColorStop(1, "rgba(79,110,247,0.02)");
       ctx.fillStyle = grad; ctx.fill();
-      // 曲线
+      // 曲线（中点贝塞尔平滑，呈现指数衰减的圆滑形状）
       ctx.beginPath();
       ctx.moveTo(X(validPts[0]), Y(d.pts[validPts[0]]));
-      for (j = 1; j < validPts.length; j++) ctx.lineTo(X(validPts[j]), Y(d.pts[validPts[j]]));
+      for (j = 1; j < validPts.length; j++) {
+        var mx = (X(validPts[j]) + X(validPts[j - 1])) / 2;
+        var my = (Y(d.pts[validPts[j]]) + Y(d.pts[validPts[j - 1]])) / 2;
+        ctx.quadraticCurveTo(X(validPts[j - 1]), Y(d.pts[validPts[j - 1]]), mx, my);
+      }
+      ctx.quadraticCurveTo(X(validPts[validPts.length - 1]), Y(d.pts[validPts[validPts.length - 1]]), X(validPts[validPts.length - 1]), Y(d.pts[validPts[validPts.length - 1]]));
       ctx.strokeStyle = "#4f6ef7"; ctx.lineWidth = 2.5; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke();
-    // 数据点：实心=真实数据，空心=推算值
+    // 数据点
       d.pts.forEach(function (v, i) {
         if (v === null) return;
-        var isReal = d.hasReal && i < 5 && (function () { return true; })(); // 所有点都画（包括推算的）
         ctx.beginPath(); ctx.arc(X(i), Y(v), 3.5, 0, Math.PI * 2);
         ctx.fillStyle = v < 0.7 ? "#e25555" : "#4f6ef7";
         ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = "#fff"; ctx.stroke();
