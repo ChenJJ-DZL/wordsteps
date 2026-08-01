@@ -18,40 +18,26 @@
     { ver: "20260728a", note: "词法分解行(前缀+词根+后缀均含中文释义) + 卡片背面版面压缩" }
   ];
   function showUpdateBanner(swVer) {
-    // 抑制：点稍后 2h 内不弹
-    try {
-      var dismissTs = parseInt(localStorage.getItem("__update_dismissed") || "0", 10);
-      if (dismissTs && Date.now() - dismissTs < 2 * 3600 * 1000) return;
-    } catch (e) {}
     var b = document.getElementById("update-banner");
     if (!b) return;
-    b.style.display = "";
-    // 自动增加 body 顶部间距，防止 banner 遮盖 topbar
-    var origPad = document.body.style.paddingTop;
-    document.body.style.paddingTop = (parseInt(origPad, 10) || 56) + 40 + "px";
-    // 防止重复绑定事件
+    // 已显示过就不再重复
+    if (b.style.display !== "none") return;
+    b.style.display = "flex";
+    // 只绑定一次事件
     if (b._bound) return; b._bound = true;
-    var reloadBtn = document.getElementById("update-reload");
-    var dismissBtn = document.getElementById("update-dismiss");
-    var detailBtn = document.getElementById("update-detail");
-    var detailEl = document.getElementById("update-details");
-    if (reloadBtn) reloadBtn.addEventListener("click", function () {
-      b.style.display = "none";
-      try { localStorage.removeItem("__update_dismissed"); } catch (e) {}
-      location.reload();  // 刷新后浏览器自动切换到新 SW
+    document.getElementById("update-reload").addEventListener("click", function () {
+      location.reload();
     });
-    if (dismissBtn) dismissBtn.addEventListener("click", function () {
+    document.getElementById("update-dismiss").addEventListener("click", function () {
       b.style.display = "none";
       try { localStorage.setItem("__update_dismissed", Date.now().toString()); } catch (e) {}
     });
+    var detailBtn = document.getElementById("update-detail");
+    var detailEl = document.getElementById("update-details");
     if (detailBtn && detailEl) {
-      var txt = CHANGELOG.map(function (c) {
-        return "v" + c.ver + "  " + c.note;
-      }).join("\n");
+      var txt = CHANGELOG.map(function (c) { return "v" + c.ver + "  " + c.note; }).join("\n");
       detailEl.textContent = txt;
-      detailBtn.addEventListener("click", function () {
-        detailEl.classList.toggle("show");
-      });
+      detailBtn.addEventListener("click", function () { detailEl.classList.toggle("show"); });
     }
   }
   function initSWUpdater() {

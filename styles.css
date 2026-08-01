@@ -40,7 +40,7 @@ body {
 /* ---------- 更新横幅 ---------- */
 #update-banner {
   display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
-  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
   background: var(--primary); color: #fff; font-size: 14px; padding: 10px 16px;
   box-shadow: 0 2px 8px rgba(79,110,247,0.3);
 }
