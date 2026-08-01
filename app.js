@@ -96,7 +96,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260801b";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
+  var APP_VER = "20260801c";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
@@ -1182,22 +1182,23 @@ function fillAnalysis(node, bw) {
         if (!k || words[k]) return;
         words[k] = 1;
         var d = EN_DEFS[k] || {};
-        var us = d.audio_us || genAudioUrl(v.w, "us");
+        // 只收集词典真实存在的音频 URL（猜测的 {word}-{accent}.mp3 大多 404/502）
+        var us = d.audio_us || "";
         if (us && !seen[us]) { seen[us] = 1; urls.push(us); }
         if (includeUk) {
-          var uk = d.audio_uk || genAudioUrl(v.w, "uk");
+          var uk = d.audio_uk || "";
           if (uk && uk !== us && !seen[uk]) { seen[uk] = 1; urls.push(uk); }
         }
       });
     });
     return urls;
   }
-  // Step3: 批量下载音频（并发 N，IDB 命中跳过 = 天然断点续传）
+  // Step3: 批量下载音频（并发 N，IDB 命中跳过 = 天然断点续传，失败自动重试一次+减速防限流）
   function downloadAudioList(urls, onProg) {
     return new Promise(function (resolve) {
       var total = urls.length, done = 0, fail = 0, stopped = false;
       function finish() { if (!stopped) { stopped = true; resolve({ done: done, fail: fail, total: total }); } }
-      function work(i) {
+      function work(i, attempt) {
         if (offlinePkg.cancel) { finish(); return; }
         if (i >= total) { finish(); return; }
         var url = urls[i];
@@ -1205,21 +1206,25 @@ function fillAnalysis(node, bw) {
           if (offlinePkg.cancel) { finish(); return; }
           if (blob) {
             done++; if (onProg) onProg(done, fail, total);
-            work(i + 1);
+            setTimeout(function () { work(i + 1, 0); }, 80);  // 微间隔防限流
             return;
           }
           fetchAudio(url, function (result, stored) {
             if (offlinePkg.cancel) { finish(); return; }
             if (result && stored) { done++; }
-            else if (result && !stored) { fail++; }   // 配额不足等写库失败
-            else { fail++; }                           // 下载失败
+            else if (attempt < 1) {
+              // 瞬时失败（502/429）→ 延时后重试一次
+              setTimeout(function () { work(i, attempt + 1); }, 800);
+              return;
+            }
+            else { fail++; }   // 重试仍失败（URL 不存在等）
             if (onProg) onProg(done, fail, total);
-            work(i + 1);
+            setTimeout(function () { work(i + 1, 0); }, 80);
           });
         });
       }
       // 启动并发
-      for (var c = 0; c < OFFLINE_CONCURRENCY; c++) { work(c); }
+      for (var c = 0; c < OFFLINE_CONCURRENCY; c++) { work(c, 0); }
     });
   }
   // 入口：mode = "full"(双口音) / "us"(仅美音) / "books"(仅词库)
