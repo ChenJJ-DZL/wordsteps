@@ -96,7 +96,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260801a";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
+  var APP_VER = "20260801b";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
@@ -621,13 +621,18 @@
   var player = document.getElementById("player");
   if (!player) player = document.createElement("audio");  // 兜底创建
   // IndexedDB 音频持久化：key=url, value=blob。二次打开后播放零延迟且完全离线。
-  var IDB_AUDIO_NAME = "wordsteps-audio", IDB_AUDIO_VER = 1, audioIdb = null;
+  var IDB_AUDIO_NAME = "wordsteps-audio", IDB_AUDIO_VER = 2, audioIdb = null;
   // ⚠️ 仅在音频格式变更时增此版本号；日常更新不要改，避免用户音频缓存被无故清空
   function idbAudioReady(cb) {
     if (audioIdb) { cb(audioIdb); return; }
     if (!("indexedDB" in window)) { cb(null); return; }
     var req = indexedDB.open(IDB_AUDIO_NAME, IDB_AUDIO_VER);
-    req.onupgradeneeded = function (e) { var db = e.target.result; if (!db.objectStoreNames.contains("blobs")) db.createObjectStore("blobs"); };
+    req.onupgradeneeded = function (e) {
+      var db = e.target.result;
+      // v1 的 blobs 无 keyPath 且 put 无 key → 数据从未写入；重建为以 url 为主键
+      if (db.objectStoreNames.contains("blobs")) db.deleteObjectStore("blobs");
+      db.createObjectStore("blobs", { keyPath: "url" });
+    };
     req.onsuccess = function (e) { audioIdb = e.target.result; cb(audioIdb); };
     req.onerror = function () { cb(null); };
   }
@@ -642,11 +647,31 @@
       } catch (e) { cb(null); }
     });
   }
-  function idbAudioSet(url, blob) {
+  function idbAudioSet(url, blob, cb) {
     idbAudioReady(function (db) {
-      if (!db) return;
-      try { var tx = db.transaction("blobs", "readwrite"); tx.objectStore("blobs").put({url:url, blob:blob}); } catch (e) {}
+      if (!db) { if (cb) cb(false); return; }
+      try {
+        var tx = db.transaction("blobs", "readwrite");
+        tx.objectStore("blobs").put({ url: url, blob: blob });
+        tx.oncomplete = function () { if (cb) cb(true); };
+        tx.onerror = function () { if (cb) cb(false); };
+        tx.onabort = function () { if (cb) cb(false); };
+      } catch (e) { if (cb) cb(false); }
     });
+  }
+  // 生成词典音频 URL（离线包与兜底用）
+  function genAudioUrl(w, acc) {
+    if (!w) return "";
+    return "https://api.dictionaryapi.dev/media/pronunciations/en/" + encodeURIComponent(w) + "-" + acc + ".mp3";
+  }
+  // 三级取音频 URL：state.cache → en_defs 离线包 → 生成 URL
+  function audioUrlFor(w, accent) {
+    var key = accent === "uk" ? "audio_uk" : "audio_us";
+    var c = state.cache[w];
+    if (c && c[key]) return c[key];
+    var d = EN_DEFS[normJs(w)];
+    if (d && d[key]) return d[key];
+    return genAudioUrl(w, accent === "uk" ? "uk" : "us");
   }
   // 静默预加载：fetch mp3 → 写入 IndexedDB，供后续离线播放
   function preloadAudioUrl(url) {
@@ -666,44 +691,36 @@
         if (!r.ok) throw new Error("fetch-fail");
         return r.blob();
       }).then(function (blob) {
-        if (!blob) { if (cb) cb(null); return; }
-        idbAudioSet(url, blob);
-        if (cb) cb(blob);
-      }).catch(function () { if (cb) cb(null); });
-    } catch (e) { if (cb) cb(null); }
+        if (!blob) { if (cb) cb(null, false); return; }
+        idbAudioSet(url, blob, function (stored) { if (cb) cb(blob, stored); });
+      }).catch(function () { if (cb) cb(null, false); });
+    } catch (e) { if (cb) cb(null, false); }
   }
   function playAudio(word) {
-    var c = state.cache[word];
-    var url = c ? (state.settings.accent === "uk" ? c.audio_uk : c.audio_us) : "";
-    // 如果没有在线音频URL，生成TTS音频URL供下载和缓存
-    var tts = "";
-    if (!url && word) try { tts = "https://api.dictionaryapi.dev/media/pronunciations/en/" + encodeURIComponent(word) + "-us.mp3"; } catch(e){}
-    if (url || tts) {
-      var finalUrl = url || tts;
-      idbAudioGet(finalUrl, function (blob) {
-        if (blob) {
+    // 三级取音频 URL：state.cache → en_defs → 生成（确保英音/美音分别正确）
+    var finalUrl = word ? audioUrlFor(word, state.settings.accent) : "";
+    if (!finalUrl) { speak(word); return; }
+    idbAudioGet(finalUrl, function (blob) {
+      if (blob) {
+        try {
+          var prev = player._blobUrl;
+          player.srcObject = null; player.src = (player._blobUrl = URL.createObjectURL(blob));
+          if (prev) URL.revokeObjectURL(prev);
+          player.play().catch(function () {});
+        } catch (e) {}
+        return;
+      }
+      fetchAudio(finalUrl, function (blob2) {
+        if (blob2) {
           try {
-            var prev = player._blobUrl;
-            player.srcObject = null; player.src = (player._blobUrl = URL.createObjectURL(blob));
-            if (prev) URL.revokeObjectURL(prev);
+            var prev2 = player._blobUrl;
+            player.srcObject = null; player.src = (player._blobUrl = URL.createObjectURL(blob2));
+            if (prev2) URL.revokeObjectURL(prev2);
             player.play().catch(function () {});
           } catch (e) {}
-          return;
-        }
-        fetchAudio(finalUrl, function (blob2) {
-          if (blob2) {
-            try {
-              var prev2 = player._blobUrl;
-              player.srcObject = null; player.src = (player._blobUrl = URL.createObjectURL(blob2));
-              if (prev2) URL.revokeObjectURL(prev2);
-              player.play().catch(function () {});
-            } catch (e) {}
-          } else { speak(word); }
-        });
+        } else { speak(word); }
       });
-      return;
-    }
-    speak(word);
+    });
   }
   // TTS 兜底：选最佳英文语音（Google > Microsoft > Apple > 其他英文本地语音）
   function bestVoice() {
@@ -1119,6 +1136,180 @@ function fillAnalysis(node, bw) {
   if (_cacheBadgeBtn) _cacheBadgeBtn.addEventListener("click", function () {
     precacheAllAudio(curBook());
   });
+
+  /* ---------- 完全离线包（词库全量 + 音频全量，双口音） ---------- */
+  var OFFLINE_CONCURRENCY = 3;      // 音频下载并发（手机内存/限流平衡）
+  var offlinePkg = { cancel: false };  // 取消标记
+  // 探测当前 SW 主缓存名（与 sw.js 的 CACHE 常量同步维护）
+  function openAppCache(cb) {
+    if (!("caches" in window)) { cb(null); return; }
+    caches.keys().then(function (keys) {
+      var name = "";
+      for (var i = 0; i < keys.length; i++) { if (/^wordsteps-v\d+$/.test(keys[i])) name = keys[i]; }
+      cb(name || null);
+    }).catch(function () { cb(null); });
+  }
+  // Step1: 预缓存全部词书 JS 到 SW 主缓存（与 loadBook 相同 URL）
+  function precacheBooks(onProg) {
+    return new Promise(function (resolve, reject) {
+      openAppCache(function (cacheName) {
+        if (!cacheName) { resolve(false); return; }
+        caches.open(cacheName).then(function (cache) {
+          var urls = REGISTRY.map(function (r) { return r.file + "?v=" + APP_VER; });
+          var done = 0;
+          function next(i) {
+            if (i >= urls.length) { resolve(true); return; }
+            cache.match(urls[i]).then(function (hit) {
+              if (hit) { done++; if (onProg) onProg(done, urls.length); next(i + 1); return; }
+              cache.add(urls[i]).then(function () {
+                done++; if (onProg) onProg(done, urls.length); next(i + 1);
+              }).catch(function () { done++; next(i + 1); });  // 单个失败不阻塞
+            }).catch(function () { done++; next(i + 1); });
+          }
+          next(0);
+        }).catch(function () { resolve(false); });
+      });
+    });
+  }
+  // Step2: 收集全部音频 URL（按词去重，双口音，uk==us 合并）
+  function collectAudioUrls(includeUk) {
+    var words = {}, urls = [], seen = {};
+    REGISTRY.forEach(function (r) {
+      var b = BOOKS_DATA[r.id];
+      if (!b || !b.words) return;
+      b.words.forEach(function (v) {
+        var k = normJs(v.w);
+        if (!k || words[k]) return;
+        words[k] = 1;
+        var d = EN_DEFS[k] || {};
+        var us = d.audio_us || genAudioUrl(v.w, "us");
+        if (us && !seen[us]) { seen[us] = 1; urls.push(us); }
+        if (includeUk) {
+          var uk = d.audio_uk || genAudioUrl(v.w, "uk");
+          if (uk && uk !== us && !seen[uk]) { seen[uk] = 1; urls.push(uk); }
+        }
+      });
+    });
+    return urls;
+  }
+  // Step3: 批量下载音频（并发 N，IDB 命中跳过 = 天然断点续传）
+  function downloadAudioList(urls, onProg) {
+    return new Promise(function (resolve) {
+      var total = urls.length, done = 0, fail = 0, stopped = false;
+      function finish() { if (!stopped) { stopped = true; resolve({ done: done, fail: fail, total: total }); } }
+      function work(i) {
+        if (offlinePkg.cancel) { finish(); return; }
+        if (i >= total) { finish(); return; }
+        var url = urls[i];
+        idbAudioGet(url, function (blob) {
+          if (offlinePkg.cancel) { finish(); return; }
+          if (blob) {
+            done++; if (onProg) onProg(done, fail, total);
+            work(i + 1);
+            return;
+          }
+          fetchAudio(url, function (result, stored) {
+            if (offlinePkg.cancel) { finish(); return; }
+            if (result && stored) { done++; }
+            else if (result && !stored) { fail++; }   // 配额不足等写库失败
+            else { fail++; }                           // 下载失败
+            if (onProg) onProg(done, fail, total);
+            work(i + 1);
+          });
+        });
+      }
+      // 启动并发
+      for (var c = 0; c < OFFLINE_CONCURRENCY; c++) { work(c); }
+    });
+  }
+  // 入口：mode = "full"(双口音) / "us"(仅美音) / "books"(仅词库)
+  function startOfflinePackage(mode) {
+    if (_precaching) return;
+    _precaching = true;
+    offlinePkg.cancel = false;
+    if (preCache) preCache.blocked = true;
+    var btn = document.getElementById("offline-btn");
+    function setTxt(t) { if (btn) btn.textContent = t; }
+    // 容量预检
+    if (navigator.storage && navigator.storage.estimate) {
+      navigator.storage.estimate().then(function (est) {
+        var free = (est.quota || 0) - (est.usage || 0);
+        if (free < 100 * 1024 * 1024 && mode !== "books") {
+          if (!confirm("存储空间可能不足（剩余约 " + Math.round(free / 1024 / 1024) + "MB），下载音频可能失败。继续？")) { _precaching = false; if (preCache) preCache.blocked = false; setTxt("离线包"); return; }
+        }
+        run();
+      }).catch(function () { run(); });
+    } else { run(); }
+    function run() {
+      setTxt("离线包 词库 0/9");
+      precacheBooks(function (done, total) { setTxt("离线包 词库 " + done + "/" + total); }).then(function () {
+        if (offlinePkg.cancel) { _precaching = false; if (preCache) preCache.blocked = false; setTxt("离线包"); return; }
+        if (mode === "books") {
+          state.settings.offlinePkg = { books: true, audio: false, ver: APP_VER };
+          saveState();
+          _precaching = false; if (preCache) preCache.blocked = false;
+          setTxt("离线包 完成"); setTimeout(function () { setTxt("离线包"); }, 3000);
+          return;
+        }
+        setTxt("离线包 收集音频…");
+        setTimeout(function () {
+          var urls = collectAudioUrls(mode === "full");
+          setTxt("离线包 音频 0/" + urls.length);
+          downloadAudioList(urls, function (done, fail, total) {
+            setTxt("离线包 音频 " + done + "/" + total + (fail ? "（失败 " + fail + "）" : ""));
+          }).then(function (res) {
+            state.settings.offlinePkg = { books: true, audio: true, us: mode === "us", ver: APP_VER };
+            saveState();
+            _precaching = false; if (preCache) preCache.blocked = false;
+            setTxt("离线包 完成" + (res.fail ? "（失败 " + res.fail + "）" : ""));
+            setTimeout(function () { setTxt("离线包"); }, 4000);
+          });
+        }, 50);
+      });
+    }
+  }
+  function stopOfflinePackage() {
+    if (!_precaching) return;
+    offlinePkg.cancel = true;
+  }
+  /* 首页「离线包」按钮 + 三档弹层 */
+  var offlineBtn = document.getElementById("offline-btn");
+  var offlineMenu = document.getElementById("offline-menu");
+  if (offlineBtn && offlineMenu) {
+    offlineBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (offlineMenu.hidden) {
+        // 定位弹层在按钮上方
+        offlineMenu.hidden = false;
+        var r = offlineBtn.getBoundingClientRect();
+        offlineMenu.style.left = Math.max(8, Math.min(window.innerWidth - offlineMenu.offsetWidth - 8, r.left)) + "px";
+        offlineMenu.style.top = (r.top - offlineMenu.offsetHeight - 10 < 8 ? r.bottom + 10 : r.top - offlineMenu.offsetHeight - 10) + "px";
+      } else {
+        offlineMenu.hidden = true;
+      }
+    });
+    offlineMenu.addEventListener("click", function (e) {
+      var opt = e.target.closest(".offline-opt");
+      if (!opt) return;
+      var mode = opt.dataset.mode;
+      if (mode) { offlineMenu.hidden = true; startOfflinePackage(mode); }
+      if (opt.id === "offline-stop") { offlineMenu.hidden = true; stopOfflinePackage(); }
+    });
+    document.addEventListener("click", function (e) {
+      if (!offlineMenu.hidden && e.target !== offlineBtn && !offlineMenu.contains(e.target)) offlineMenu.hidden = true;
+    });
+  }
+  // SW 升级后自动补词库（词书随 SW 换桶丢失；音频在 IDB 不受影响）
+  function autoReprecacheBooks() {
+    if (!state.settings.offlinePkg || !state.settings.offlinePkg.books) return;
+    if (navigator.onLine === false) return;
+    if (_precaching) return;
+    precacheBooks(null);
+  }
+  // 在既有的 sw-updated/controllerchange 回调中联动（挂在 message 监听后执行一次探测）
+  if (navigator.serviceWorker) {
+    navigator.serviceWorker.addEventListener("controllerchange", function () { autoReprecacheBooks(); });
+  }
 
   /* ---------- 视图切换 ---------- */
   function showView(name) {
@@ -1681,6 +1872,8 @@ function fillAnalysis(node, bw) {
   refreshAccent();
   refreshInc();
   refreshLadder();
+  // 若已装过离线包，SW 升级后补回词书缓存（查缺，不重复下载）
+  setTimeout(function () { autoReprecacheBooks(); }, 3000);
   // 每日新词上限输入框
   var limitInput = document.getElementById("home-limit");
   if (limitInput) {

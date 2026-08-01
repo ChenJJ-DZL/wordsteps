@@ -261,6 +261,22 @@ body {
   padding: 11px 13px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.18);
 }
 .popover[hidden] { display: none; }
+/* 完全离线包按钮与菜单 */
+.offline-btn {
+  display: block; width: 100%; margin-top: 10px;
+  border: 1.5px dashed var(--line); border-radius: var(--radius);
+  background: var(--surface); color: var(--primary); font-size: 14px; font-weight: 700;
+  padding: 12px; cursor: pointer; box-shadow: var(--shadow);
+}
+.offline-btn:hover { border-color: var(--primary); background: var(--primary-soft); }
+#offline-menu { max-width: 260px; padding: 8px; }
+.offline-title { font-weight: 700; padding: 4px 6px 8px; font-size: 14px; }
+.offline-opt {
+  display: block; width: 100%; text-align: left; border: none; background: transparent;
+  color: #fff; font-size: 13px; padding: 9px 8px; border-radius: 8px; cursor: pointer;
+}
+.offline-opt:hover { background: rgba(255,255,255,.12); }
+.offline-opt.offline-cancel { color: #ff9d9d; border-top: 1px solid rgba(255,255,255,.15); margin-top: 4px; border-radius: 0 0 8px 8px; }
 
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); margin-bottom: 16px; }
 .panel h3 { margin: 0 0 12px; font-size: 15px; color: var(--ink-soft); }
