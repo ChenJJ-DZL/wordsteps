@@ -1280,7 +1280,8 @@ function fillAnalysis(node, bw) {
   });
 
   /* ---------- 阶梯模式（及时复习穿插） ---------- */
-  var LADDER_UNIT = 4;                 // 每学 N 个新词插入一轮复习
+  var LADDER_MIN_WORDS = 20;           // 每轮至少 20 个新词
+  var LADDER_MIN_FAMS = 4;             // 且覆盖至少 4 族
   function mkRevCard(v) { var c = {}; for (var k in v) { c[k] = v[k]; } c._rev = true; return c; }
   // 跨会话判定：开关开 + 距上次学新词 >=1 小时
   function ladderCrossReady(id) {
@@ -1307,22 +1308,33 @@ function fillAnalysis(node, bw) {
     for (var i = pool.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
     return pool.slice(0, max).map(mkRevCard);
   }
-  // 构建混合队列：[新×4, 复(刚学4), 巩固k, 新×4, ...]
+  // 构建混合队列：按「4族且≥20词」分组，组后插复习卡（刚学词洗牌）+ 跨会话巩固卡
   function buildLadderQueue(news, id) {
     if (!state.settings.ladder || !news.length) return news;
     var out = [];
     var cross = ladderCrossReady(id) ? crossPool(id, Math.ceil(news.length / 1.5)) : [];
     var ci = 0;
-    for (var i = 0; i < news.length; i += LADDER_UNIT) {
-      var chunk = news.slice(i, i + LADDER_UNIT);
-      out.push.apply(out, chunk);
-      // 同会话复习卡：刚学的 chunk（组内洗牌）
-      var revs = chunk.slice().sort(function () { return Math.random() - 0.5; }).map(mkRevCard);
+    var group = [], fams = {}, famCount = 0;
+    function flush() {
+      if (!group.length) return;
+      out.push.apply(out, group);
+      // 复习卡：本组新词洗牌
+      var revs = group.slice().sort(function () { return Math.random() - 0.5; }).map(mkRevCard);
       out.push.apply(out, revs);
-      // 跨会话巩固卡：每 chunk 配 round(len/1.5) 张
-      var need = Math.max(0, Math.round(chunk.length / 1.5));
+      // 跨会话巩固卡：按 1.5:1
+      var need = Math.max(0, Math.round(group.length / 1.5));
       while (need > 0 && ci < cross.length) { out.push(cross[ci]); ci++; need--; }
+      group = []; fams = {}; famCount = 0;
     }
+    for (var i = 0; i < news.length; i++) {
+      var w = news[i];
+      group.push(w);
+      var key = w.root || w.w;
+      if (!fams[key]) { fams[key] = 1; famCount++; }
+      // 累计 20 词 且 覆盖 4 族 → 成组（尾组不足也随 flush 兜底）
+      if (group.length >= LADDER_MIN_WORDS && famCount >= LADDER_MIN_FAMS) flush();
+    }
+    flush();
     return out;
   }
 
