@@ -109,6 +109,13 @@
           <span class="qbtn-title">学习新词</span>
           <span class="qbtn-sub" id="home-learn-sub">0 个新词待学</span>
         </button>
+        <div class="inc-block" id="home-ladder-block">
+          <button class="inc-toggle" id="home-ladder" aria-pressed="true" title="开启后，学习新词时每学 4 个词插入一轮复习（含当天未掌握/模糊词），实现及时复习">
+            <span class="inc-dot"></span>
+            <span class="inc-label">阶梯</span>
+          </button>
+          <button class="inc-help" id="ladder-help" aria-label="阶梯说明" title="阶梯说明">?</button>
+        </div>
         <div class="inc-block" id="home-inc-block">
           <button class="inc-toggle" id="home-inc" aria-pressed="false" title="开启后，除基础/初中外，每个词本只显示与上一难度差集的新词">
             <span class="inc-dot"></span>
@@ -235,6 +242,7 @@
   </template>
 
   <div id="inc-help-pop" class="popover" hidden>开启后将只显示当前单词书对比上本的新增单词</div>
+  <div id="ladder-help-pop" class="popover" hidden>开启后，学习新词时每学 4 个词插入一轮刚学词汇的复习；距上次学习超过 1 小时再学时，还会穿插当天未掌握/模糊的词汇，实现及时巩固</div>
 
   <audio id="player" hidden></audio>
 

@@ -96,7 +96,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260730r";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
+  var APP_VER = "20260801a";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
@@ -108,7 +108,7 @@
   function defaultSkeleton() {
     return {
       schemaVer: SCHEMA_VER,
-      settings: { accent: "us", book: (REGISTRY[0] && REGISTRY[0].id) || "ogden", incremental: false, bookSort: {}, dailyNewLimit: 0 },
+      settings: { accent: "us", book: (REGISTRY[0] && REGISTRY[0].id) || "ogden", incremental: false, bookSort: {}, dailyNewLimit: 0, ladder: true, lastLearnAt: {} },
       streak: { lastDate: "", count: 0 }, sessions: [], cache: {}, books: {},
       forgetStats: {},    // 间隔段遗忘统计(SRS引擎用)
       dayForgetStats: {}  // 自然日遗忘统计(曲线可视化用)
@@ -1279,12 +1279,59 @@ function fillAnalysis(node, bw) {
     if (document.getElementById("view-home") && document.getElementById("view-home").classList.contains("active")) drawForgetCurve();
   });
 
+  /* ---------- 阶梯模式（及时复习穿插） ---------- */
+  var LADDER_UNIT = 4;                 // 每学 N 个新词插入一轮复习
+  function mkRevCard(v) { var c = {}; for (var k in v) { c[k] = v[k]; } c._rev = true; return c; }
+  // 跨会话判定：开关开 + 距上次学新词 >=1 小时
+  function ladderCrossReady(id) {
+    if (!state.settings.ladder) return false;
+    var last = state.settings.lastLearnAt ? state.settings.lastLearnAt[id] : 0;
+    return Date.now() - (last || 0) >= 3600000;
+  }
+  // 当天巩固词池：今天 firstLearned 且 未掌握/模糊/有lapses，返回完整词对象
+  function crossPool(id, max) {
+    var rs = bookRecs(id), sod = startOfDay(Date.now()), pool = [];
+    var book = BOOKS_DATA[id];
+    var byWord = book ? {} : null;
+    if (book) book.words.forEach(function (v) { byWord[v.w] = v; });
+    for (var w in rs) {
+      var r = rs[w];
+      if (!r || startOfDay(r.firstLearned) !== sod) continue;
+      if (r.status === "learning" || r.lastRating === "fuzzy" || (r.lapses && r.lapses > 0)) {
+        var wobj = byWord ? byWord[w] : null;
+        pool.push(wobj || { w: w });
+      }
+    }
+    if (pool.length <= max) return pool.map(mkRevCard);
+    // 随机抽 max 个
+    for (var i = pool.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
+    return pool.slice(0, max).map(mkRevCard);
+  }
+  // 构建混合队列：[新×4, 复(刚学4), 巩固k, 新×4, ...]
+  function buildLadderQueue(news, id) {
+    if (!state.settings.ladder || !news.length) return news;
+    var out = [];
+    var cross = ladderCrossReady(id) ? crossPool(id, Math.ceil(news.length / 1.5)) : [];
+    var ci = 0;
+    for (var i = 0; i < news.length; i += LADDER_UNIT) {
+      var chunk = news.slice(i, i + LADDER_UNIT);
+      out.push.apply(out, chunk);
+      // 同会话复习卡：刚学的 chunk（组内洗牌）
+      var revs = chunk.slice().sort(function () { return Math.random() - 0.5; }).map(mkRevCard);
+      out.push.apply(out, revs);
+      // 跨会话巩固卡：每 chunk 配 round(len/1.5) 张
+      var need = Math.max(0, Math.round(chunk.length / 1.5));
+      while (need > 0 && ci < cross.length) { out.push(cross[ci]); ci++; need--; }
+    }
+    return out;
+  }
+
   /* ---------- 学习（新词） ---------- */
   var learnQueue = [], learnIdx = 0, learnRated = 0;
   function startLearn() {
     var id = curBook();
     var limit = state.settings.dailyNewLimit || 0;
-    loadBook(id, function (book) { if (!book) { showView("home"); return; } learnQueue = newWords(id, limit); learnIdx = 0; learnRated = 0; renderLearn(); });
+    loadBook(id, function (book) { if (!book) { showView("home"); return; } var news = newWords(id, limit); learnQueue = buildLadderQueue(news, id); learnIdx = 0; learnRated = 0; renderLearn(); });
   }
   function renderLearn() {
     var id = curBook(), now = Date.now();
@@ -1311,9 +1358,18 @@ function fillAnalysis(node, bw) {
   document.getElementById("learn-rate-controls").addEventListener("click", function (e) {
     var btn = e.target.closest(".rate"); if (!btn || !learnQueue.length || learnIdx >= learnQueue.length) return;
     var rating = btn.dataset.rate, bw = learnQueue[learnIdx];
+    var isRev = !!bw._rev;
     ensureSession();
     scheduleReview(curBook(), bw.w, rating);
-    if (curSession) { curSession.newCount++; curSession[rating]++; }
+    if (curSession) {
+      if (isRev) { curSession.reviewCount++; }
+      else {
+        curSession.newCount++;
+        if (!state.settings.lastLearnAt) state.settings.lastLearnAt = {};
+        state.settings.lastLearnAt[curBook()] = Date.now();
+      }
+      curSession[rating]++;
+    }
     learnRated++; learnIdx++; renderLearn();
   });
 
@@ -1569,11 +1625,50 @@ function fillAnalysis(node, bw) {
     });
   }
 
+  /* ---------- 阶梯模式开关「阶梯 + ?」 ---------- */
+  var ladderBtn = document.getElementById("home-ladder");
+  var ladderBlock = document.getElementById("home-ladder-block");
+  function refreshLadder() {
+    if (!ladderBtn) return;
+    var on = !!state.settings.ladder;
+    ladderBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    ladderBtn.classList.toggle("on", on);
+    if (ladderBlock) ladderBlock.classList.toggle("on", on);
+    var lbl = ladderBtn.querySelector(".inc-label");
+    if (lbl) lbl.textContent = on ? "阶梯 ✓" : "阶梯";
+  }
+  if (ladderBtn) ladderBtn.addEventListener("click", function () {
+    state.settings.ladder = !state.settings.ladder;
+    saveState();
+    refreshLadder();
+  });
+  /* 阶梯说明「?」浮窗 */
+  var ladderHelp = document.getElementById("ladder-help");
+  var ladderPop = document.getElementById("ladder-help-pop");
+  if (ladderHelp && ladderPop) {
+    ladderHelp.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (!ladderPop.hidden) { ladderPop.hidden = true; return; }
+      ladderPop.hidden = false;
+      var r = ladderHelp.getBoundingClientRect();
+      var pw = ladderPop.offsetWidth, ph = ladderPop.offsetHeight;
+      var left = Math.max(8, Math.min(window.innerWidth - pw - 8, r.left + r.width / 2 - pw / 2));
+      var top = r.top - ph - 10;
+      if (top < 8) top = r.bottom + 10;
+      ladderPop.style.left = left + "px";
+      ladderPop.style.top = top + "px";
+    });
+    document.addEventListener("click", function (e) {
+      if (!ladderPop.hidden && e.target !== ladderHelp && !ladderPop.contains(e.target)) ladderPop.hidden = true;
+    });
+  }
+
   /* ---------- 初始化 ---------- */
   fillBookSelect(homeSel); if (learnSel) fillBookSelect(learnSel);
   window.addEventListener("beforeunload", endSession);
   refreshAccent();
   refreshInc();
+  refreshLadder();
   // 每日新词上限输入框
   var limitInput = document.getElementById("home-limit");
   if (limitInput) {
