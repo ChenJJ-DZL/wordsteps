@@ -96,7 +96,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260801d";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
+  var APP_VER = "20260803a";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
@@ -681,9 +681,7 @@
   }
   // 提前预下载下一张卡片的音频（减少翻页后的播放延迟）
   function preloadCardAudio(bw) {
-    var c = state.cache[bw.w];
-    if (!c || !c.loaded) return;  // 词还没有 enrich 数据，等 enrich 后再预下载
-    var url = state.settings.accent === "uk" ? c.audio_uk : c.audio_us;
+    var url = audioUrlFor(bw.w, state.settings.accent);
     if (url) preloadAudioUrl(url);
   }
   function fetchAudio(url, cb) {
@@ -697,8 +695,18 @@
       }).catch(function () { if (cb) cb(null, false); });
     } catch (e) { if (cb) cb(null, false); }
   }
+  // 音频 URL —— 同源预生成文件（books/audio/{us|uk}/{word}.mp3），SW 缓存即离线，覆盖全部词
+  function genAudioUrl(w, acc) {
+    if (!w) return "";
+    // 文件名归一化与构建脚本一致：小写+字母数字保留，其余→_；Windows 保留名加 _
+    var safe = String(w).toLowerCase().replace(/[^a-z0-9]/g, "_");
+    if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/.test(safe)) safe += "_";
+    return "books/audio/" + (acc === "uk" ? "uk" : "us") + "/" + safe + ".mp3";
+  }
+  function audioUrlFor(w, accent) {
+    return genAudioUrl(w, accent === "uk" ? "uk" : "us");
+  }
   function playAudio(word) {
-    // 三级取音频 URL：state.cache → en_defs → 生成（确保英音/美音分别正确）
     var finalUrl = word ? audioUrlFor(word, state.settings.accent) : "";
     if (!finalUrl) { speak(word); return; }
     idbAudioGet(finalUrl, function (blob) {
@@ -1113,7 +1121,6 @@ function fillAnalysis(node, bw) {
     if (_precaching) return;
     _precaching = true;
     var el = document.getElementById("cache-badge");
-    var acc = state.settings.accent === "uk" ? "audio_uk" : "audio_us";
     var words = b.words.filter(function (v) { return state.cache[v.w]; });
     var total = words.length, done = 0;
     function show() { if (el && _precaching) el.textContent = "下载中 " + done + "/" + total; }
@@ -1239,7 +1246,7 @@ function fillAnalysis(node, bw) {
     if (navigator.storage && navigator.storage.estimate) {
       navigator.storage.estimate().then(function (est) {
         var free = (est.quota || 0) - (est.usage || 0);
-        if (free < 100 * 1024 * 1024 && mode !== "books") {
+        if (free < 200 * 1024 * 1024 && mode !== "books") {
           if (!confirm("存储空间可能不足（剩余约 " + Math.round(free / 1024 / 1024) + "MB），下载音频可能失败。继续？")) { _precaching = false; if (preCache) preCache.blocked = false; setTxt("离线包"); return; }
         }
         run();

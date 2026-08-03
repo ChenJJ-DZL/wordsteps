@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WordSteps 项目现状分析报告</title>
+<style>
+:root {
+  --bg: #f8f9fb;
+  --surface: #fff;
+  --ink: #1f2733;
+  --ink-soft: #5b6675;
+  --ink-faint: #9aa5b4;
+  --primary: #4f6ef7;
+  --good: #1faa6a;
+  --mid: #e6932b;
+  --bad: #e25555;
+  --line: #e3e8f0;
+  --radius: 12px;
+  --shadow: 0 2px 12px rgba(31,39,51,0.06);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg); color: var(--ink); line-height: 1.7; padding: 24px;
+}
+.container { max-width: 960px; margin: 0 auto; }
+h1 { font-size: 28px; margin-bottom: 8px; color: var(--primary); }
+h2 { font-size: 22px; margin: 32px 0 16px; padding-bottom: 8px; border-bottom: 2px solid var(--primary); }
+h3 { font-size: 18px; margin: 24px 0 12px; color: var(--ink-soft); }
+h4 { font-size: 16px; margin: 16px 0 8px; }
+.subtitle { color: var(--ink-faint); font-size: 14px; margin-bottom: 24px; }
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 20px 24px; margin-bottom: 16px; box-shadow: var(--shadow);
+}
+.card h3 { margin-top: 0; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.stat-box { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; text-align: center; }
+.stat-box .num { font-size: 28px; font-weight: 700; color: var(--primary); }
+.stat-box .lbl { font-size: 12px; color: var(--ink-faint); margin-top: 4px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; padding: 10px 12px; background: #f0f3f9; font-weight: 600; color: var(--ink-soft); }
+td { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.tag { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+.tag-ok { background: #e4f6ee; color: var(--good); }
+.tag-warn { background: #fdf1df; color: var(--mid); }
+.tag-bad { background: #fdeaea; color: var(--bad); }
+.tag-info { background: #eaf0ff; color: var(--primary); }
+ul, ol { padding-left: 24px; margin: 12px 0; }
+li { margin-bottom: 8px; }
+code { background: #f0f3f9; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+.highlight { background: linear-gradient(180deg, transparent 60%, #eaf0ff 60%); }
+.p-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 600px) { .p-grid { grid-template-columns: 1fr; } }
+.priority { display: flex; gap: 8px; align-items: flex-start; }
+.priority .p-badge { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 13px; font-weight: 700; }
+.p0 { background: var(--bad); }
+.p1 { background: var(--mid); }
+.p2 { background: var(--primary); }
+.p3 { background: var(--good); }
+.arch-diagram { background: #f8f9fb; border: 1px dashed var(--line); border-radius: var(--radius); padding: 20px; margin: 16px 0; font-family: monospace; font-size: 13px; line-height: 1.8; white-space: pre; overflow-x: auto; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>📊 WordSteps 阶梯背单词 — 项目现状分析报告</h1>
+<p class="subtitle">分析日期：2026-07-25 | 代码版本：20260723f | 仓库：github.com/ChenJJ-DZL/wordsteps</p>
+
+<!-- 项目概览 -->
+<div class="card">
+  <h3>项目概览</h3>
+  <div class="stats-grid">
+    <div class="stat-box"><div class="num">1</div><div class="lbl">HTML 入口文件</div></div>
+    <div class="stat-box"><div class="num">1</div><div class="lbl">JS 核心逻辑 (42KB)</div></div>
+    <div class="stat-box"><div class="num">1</div><div class="lbl">CSS 样式表 (20KB)</div></div>
+    <div class="stat-box"><div class="num">9</div><div class="lbl">词库文件 (9个考纲)</div></div>
+    <div class="stat-box"><div class="num">~38K</div><div class="lbl">词库总词条数</div></div>
+    <div class="stat-box"><div class="num">~28K</div><div class="lbl">离线英文释义</div></div>
+  </div>
+  <p>
+    <strong>定位：</strong>离线优先的单页渐进式 Web 应用 (PWA)，以"阶梯式词库 + 艾宾浩斯遗忘曲线间隔重复 (SRS)"为核心学习机制。
+    通过 <code>manifest.webmanifest</code> + Service Worker 实现"添加到桌面"伪装为移动端 App 的体验。
+    全部数据（词库、释义、学习进度）均存储在浏览器 localStorage 中，无后端服务。
+  </p>
+</div>
+
+<!-- 技术架构 -->
+<h2>1. 技术架构分析</h2>
+
+<div class="card">
+  <h3>1.1 技术栈总览</h3>
+  <table>
+    <tr><th>层面</th><th>技术方案</th><th>评价</th></tr>
+    <tr><td>前端框架</td><td>原生 JavaScript（无框架），IIFE 封装</td><td><span class="tag tag-warn">单文件 783 行，缺乏模块化</span></td></tr>
+    <tr><td>样式方案</td><td>原生 CSS + CSS 变量</td><td><span class="tag tag-ok">整洁，变量体系完善</span></td></tr>
+    <tr><td>数据持久化</td><td>localStorage (单键 <code>vocab_app_v2</code>)</td><td><span class="tag tag-warn">容量受限、无备份</span></td></tr>
+    <tr><td>离线方案</td><td>Service Worker (Cache API, v17)</td><td><span class="tag tag-ok">缓存策略成熟</span></td></tr>
+    <tr><td>PWA 能力</td><td>manifest.webmanifest + SW + icons</td><td><span class="tag tag-ok">可安装标准 PWA</span></td></tr>
+    <tr><td>音频方案</td><td>离线音频 URL 链接 + Web Speech API TTS 兜底</td><td><span class="tag tag-warn">依赖外部 CDN 音频</span></td></tr>
+    <tr><td>外部依赖</td><td>dictionaryapi.dev (可选，已默认关闭)</td><td><span class="tag tag-ok">离线优先设计</span></td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <h3>1.2 代码架构图</h3>
+  <div class="arch-diagram">
+┌─────────────────────────────────────────────────┐
+│                   index.html                     │
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐         │
+│  │ view-home │  │view-learn│  │view-review│ ...   │
+│  └────┬─────┘  └────┬────┘  └────┬─────┘         │
+└───────┼──────────────┼──────────┼───────────────┘
+        │              │          │
+┌───────┴──────────────┴──────────┴───────────────┐
+│                   app.js (IIFE)                   │
+│  ┌──────────┐ ┌─────────┐ ┌──────────┐          │
+│  │ 状态管理  │ │ SRS引擎  │ │ 卡片渲染  │          │
+│  │ localStorage│ │ 艾宾浩斯  │ │ flip-card │          │
+│  └────┬─────┘ └────┬────┘ └────┬─────┘          │
+│       │            │            │                 │
+│  ┌────┴────────────┴────────────┴────┐          │
+│  │        词库懒加载 (动态 script)      │          │
+│  │  9 本词书 + 离线释义 + 增量模式      │          │
+│  └──────────────────────────────────┘          │
+└─────────────────────────────────────────────────┘
+        │
+┌───────┴─────────────────────────────────────────┐
+│            数据层 (localStorage)                  │
+│  ┌─────────┐ ┌─────────┐ ┌──────────┐          │
+│  │ books/{id}│ │sessions │ │ streak   │          │
+│  │ records  │ │ 学习会话  │ │ 连续天数  │          │
+│  └─────────┘ └─────────┘ └──────────┘          │
+└─────────────────────────────────────────────────┘
+  </div>
+</div>
+
+<!-- 页面结构 -->
+<h2>2. 页面结构与交互流程</h2>
+
+<div class="card">
+  <h3>2.1 四视图架构</h3>
+  <table>
+    <tr><th>视图</th><th>路由方式</th><th>核心功能</th></tr>
+    <tr>
+      <td><strong>首页 (概览)</strong></td>
+      <td><code>view-home</code></td>
+      <td>统计面板（今日待复习/新学/累计/已掌握）、环形掌握度、遗忘曲线图、增量模式开关、单词本 & 排序选择器、复习预览</td>
+    </tr>
+    <tr>
+      <td><strong>学习 (新词)</strong></td>
+      <td><code>view-learn</code></td>
+      <td>翻转卡片（正面：单词+音标，背面：中文+核心意象+例句+近反义词）、"我记住了" / "跳过" 按钮、缓存进度条</td>
+    </tr>
+    <tr>
+      <td><strong>复习</strong></td>
+      <td><code>view-review</code></td>
+      <td>翻转卡片 + 三档评分按钮（不认识😵 / 模糊🤔 / 认识😎），评分后自动进入 Ebbinghaus SRS 调度</td>
+    </tr>
+    <tr>
+      <td><strong>历史</strong></td>
+      <td><code>view-history</code></td>
+      <td>学习统计、会话记录（最近40条）、已学单词列表（搜索+筛选）、清空进度入口</td>
+    </tr>
+  </table>
+</div>
+
+<div class="card">
+  <h3>2.2 核心交互流程</h3>
+  <ol>
+    <li><strong>选择词库 → 选择排序（字母/词频/词根）→ 可选开启增量模式</strong></li>
+    <li><strong>学习新词：</strong>首页点"学习新词"→ 进入学习视图 → 翻卡看释义 → 点击"我记住了"建立 SRS 记录 → 自动播放下一个</li>
+    <li><strong>复习旧词：</strong>首页点"开始复习"→ 进入复习视图 → 翻卡回忆 → 三档评分 → SRS 引擎重新调度 → 下一个</li>
+    <li><strong>每日循环：</strong>打开 App → 首页展示今日待复习数 → 先复习 → 再学新词</li>
+  </ol>
+</div>
+
+<!-- 数据存储 -->
+<h2>3. 数据存储方式分析</h2>
+
+<div class="card">
+  <h3>3.1 localStorage 数据结构</h3>
+  <div class="arch-diagram">
+{
+  schemaVer: 1,           // 数据迁移版本
+  settings: {
+    accent: "us",         // 口音选择 (us/uk)
+    book: "ogden",        // 当前词库
+    incremental: false,   // 增量模式
+    bookSort: {}          // 各词库排序偏好
+  },
+  streak: {
+    lastDate: "2026-07-25", // 最后学习日期
+    count: 7               // 连续学习天数
+  },
+  sessions: [{             // 学习会话记录（最多300条）
+    ts, date, book, durMs,
+    newCount, reviewCount,
+    know, fuzzy, unknown
+  }],
+  cache: {                 // 单词富化缓存
+    "word": { en, ex, syn[], ant[], audio_uk, audio_us, loaded, error }
+  },
+  books: {                 // 各词库学习进度
+    "ogden": {
+      records: {
+        "come": {
+          firstLearned, lastReviewed, nextReview,
+          intervalIdx, reps, lapses, lastRating, status
+        }
+      }
+    }
+  }
+}
+  </div>
+</div>
+
+<div class="card">
+  <h3>3.2 存储风险分析</h3>
+  <table>
+    <tr><th>风险点</th><th>说明</th><th>严重程度</th></tr>
+    <tr>
+      <td>容量上限</td>
+      <td>localStorage 通常限制 5-10MB，当用户学完数千单词后 records + cache 会显著增长</td>
+      <td><span class="tag tag-warn">中等</span></td>
+    </tr>
+    <tr>
+      <td>数据丢失</td>
+      <td>浏览器清除数据、隐私模式、存储满后被静默清理，均会导致学习进度丢失</td>
+      <td><span class="tag tag-bad">高</span></td>
+    </tr>
+    <tr>
+      <td>无云端同步</td>
+      <td>换设备即丢失全部进度，无法跨设备学习</td>
+      <td><span class="tag tag-bad">高</span></td>
+    </tr>
+    <tr>
+      <td>无加密</td>
+      <td>用户学习数据明文存储在 localStorage 中</td>
+      <td><span class="tag tag-info">低</span></td>
+    </tr>
+  </table>
+</div>
+
+<!-- 核心功能模块 -->
+<h2>4. 核心功能模块实现详解</h2>
+
+<div class="card">
+  <h3>4.1 SRS 间隔重复引擎（艾宾浩斯）</h3>
+  <p><strong>间隔数组：</strong></p>
+  <code>[10分钟, 1天, 2天, 4天, 7天, 15天, 30天, 60天, 120天]</code> — 共9级，约4个月完成一个完整周期。
+  <br><br>
+  <p><strong>评分逻辑 (scheduleReview)：</strong></p>
+  <ul>
+    <li><strong>认识 (know)：</strong> intervalIdx +1，进入下一级，最高级后标记 <code>status="mastered"</code></li>
+    <li><strong>模糊 (fuzzy)：</strong> intervalIdx -1（不低于1），重新回到前一级</li>
+    <li><strong>不认识 (unknown)：</strong> intervalIdx 重置为 0（10分钟后复习），lapses +1</li>
+  </ul>
+  <p><strong>新词初始状态：</strong>首次学习后 intervalIdx=1（1天后首次复习）。</p>
+  <p><strong>待复习计算：</strong>遍历 records，<code>nextReview &lt;= endOfDay(now)</code> 即今天需要复习。</p>
+  <br>
+  <p><strong>✅ 优点：</strong></p>
+  <ul>
+    <li>间隔级数覆盖4个月周期，符合艾宾浩斯记忆曲线理论</li>
+    <li>三种评分差异化调整幅度（升1/降1/重置），逻辑简洁有效</li>
+    <li>新词默认1天后复习，避免当天过度重复</li>
+  </ul>
+  <p><strong>⚠️ 不足：</strong></p>
+  <ul>
+    <li><strong>无每日新词上限控制：</strong>用户可以无限学习新词，没有"每日学习目标"概念</li>
+    <li><strong>算法参数固定：</strong>S 值（稳定常数）、间隔长度均在代码中硬编码，无法根据用户表现动态调整</li>
+    <li><strong>缺乏难度系数：</strong>所有单词平等对待，没有根据用户对该词的历史表现调整间隔</li>
+    <li><strong>无复习队列优先级：</strong>待复习词按词序排列，而非按"紧迫性"（最该复习的排前面）</li>
+    <li><strong>无"遗忘后再掌握"的加速机制：</strong>每次 lapses 都在同一个词上累加，但不改变其 SRS 参数</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>4.2 增量模式 (Incremental)</h3>
+  <p>开启后，除 850 基础词 & 初中外，每本词书只显示与"之前所有词本并集"的差集新词。通过 <code>wkey()</code> 归一化函数（小写+去非字母数字）做词形比对。</p>
+  <ul>
+    <li><strong>✅ 优点：</strong>解决了多词本之间大量重复词的问题（如四级包含大量高中词），避免用户重复背诵</li>
+    <li><strong>✅ 细节：</strong>差集缓存 <code>_incCache</code> 在词库切换或增量开关变化时失效重算</li>
+    <li><strong>⚠️ 不足：</strong>差值仅基于词形匹配，不考虑一词多义（如 "bank" 在高中是"银行"，在雅思可能是"河岸/倾斜"）</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>4.3 词根排序</h3>
+  <p>默认排序方式。将单词按 <code>root</code> 字段分组，组间按组词数降序排列，采用轮转交错 (round-robin) 方式从各组依次取词，确保同根词不连续出现。</p>
+  <ul>
+    <li><strong>✅ 优点：</strong>巧妙的实现，避免同根词密集出现导致"前摄干扰"</li>
+    <li><strong>⚠️ 不足：</strong>大量单词缺少 root 标注（在 CET-4 中很多高频词如 "the", "a", "to" 无 root），无 root 词各自成组破坏了轮转效果</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>4.4 单词卡片与翻面</h3>
+  <ul>
+    <li><strong>正面：</strong>单词(50px)、音标、词根角标、发音按钮、翻面提示</li>
+    <li><strong>背面：</strong>单词(30px)、音标、中文释义、核心意象、英文例句+中文翻译、近义词/反义词 chips</li>
+    <li><strong>翻面机制：</strong>v20260721c 修复为纯 2D opacity 淡入淡出，彻底解决了旧版 3D transform 导致的字体发虚问题</li>
+    <li><strong>自动发音：</strong>每张卡片展示时自动朗读（真实音频优先，TTS 兜底）</li>
+    <li><strong>⚠️ 不足：</strong>例句仅部分词库有（Ogden 基础词有例句+翻译，其他词库主要靠离线 API 数据），且大量词缺少 ex/exz 字段</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>4.5 离线能力</h3>
+  <ul>
+    <li><strong>Service Worker (v17)：</strong>缓存应用外壳 + 词库 JS 文件，支持离线访问</li>
+    <li><strong>缓存策略：</strong>导航请求网络优先（失败回退缓存），静态资源缓存优先</li>
+    <li><strong>离线释义包 (en_defs.js, ~28K 条目)：</strong>构建期预抓取的英文释义 + 发音 URL</li>
+    <li><strong>发音：</strong>依赖 dictionaryapi.dev 的 CDN 音频 URL（离线时音频不可用，仅 TTS 兜底）</li>
+    <li><strong>⚠️ 不足：</strong>发音音频没有本地化缓存，离线时完全依赖 TTS；large 词库文件（toefl 2.2MB）首次加载较重</li>
+  </ul>
+</div>
+
+<div class="card">
+  <h3>4.6 遗忘曲线可视化</h3>
+  <p>使用 Canvas 绘制 30 天遗忘曲线。公式：<code>T30 * exp(-x/FC_S)</code>，其中 FC_S=20 为美观常数（非严谨记忆模型）。基于学习会话记录的 newCount 做每日累加计算。</p>
+  <ul>
+    <li><strong>⚠️ 不足：</strong>曲线是纯展示性的归纳（统计学了多少），不是对单个单词记忆强度的预测模型。与 SRS 调度引擎没有直接关联。</li>
+  </ul>
+</div>
+
+<!-- 词库数据 -->
+<h2>5. 词库数据体系</h2>
+
+<div class="card">
+  <table>
+    <tr><th>词库 ID</th><th>中文名</th><th>词数</th><th>文件大小</th><th>数据字段</th><th>来源</th></tr>
+    <tr><td>ogden</td><td>基础英语</td><td>850</td><td>229K</td><td>w, zh, en, core, ex, exz, ipa_uk/ipa_us, syn[], ant[]</td><td>Ogden Basic English</td></tr>
+    <tr><td>chuzhong</td><td>初中</td><td>1,987</td><td>455K</td><td>w, zh, ipa, ipa_us, ipa_uk</td><td>KyleBing 初中-乱序</td></tr>
+    <tr><td>gaozhong</td><td>高考</td><td>3,483</td><td>699K</td><td>w, root, freq, zh, ipa/ipa_us/ipa_uk, ex, exz</td><td>pluto0x0/word3500</td></tr>
+    <tr><td>cet4</td><td>四级</td><td>4,023</td><td>779K</td><td>w, root, freq, zh, ipa/ipa_us/ipa_uk, ex, exz</td><td>exam-data/CET</td></tr>
+    <tr><td>cet6</td><td>六级</td><td>5,276</td><td>1.1M</td><td>w, root, freq, zh, ipa/ipa_us/ipa_uk, ex, exz</td><td>exam-data/CET</td></tr>
+    <tr><td>kaoyan</td><td>考研</td><td>5,528</td><td>1.1M</td><td>w, root, freq, zh, ipa/ipa_us/ipa_uk, ex, exz</td><td>exam-data/NETEM</td></tr>
+    <tr><td>ielts</td><td>雅思</td><td>3,427</td><td>851K</td><td>w, root, freq, zh, ipa/ipa_us/ipa_uk, ex, exz</td><td>kajweb/dict 有道版</td></tr>
+    <tr><td>sat</td><td>SAT</td><td>4,423</td><td>1.3M</td><td>w, root, freq, zh, ipa/ipa_us/ipa_uk, ex, exz</td><td>kajweb/dict 有道版</td></tr>
+    <tr><td>toefl</td><td>托福</td><td>9,212</td><td>2.2M</td><td>w, root, freq, zh, ipa/ipa_us/ipa_uk, ex, exz</td><td>kajweb/dict 有道版</td></tr>
+  </table>
+  <br>
+  <p><strong>⚠️ 数据质量问题：</strong></p>
+  <ul>
+    <li>不同词库数据字段不统一：Ogden 有完整的 core/syn/ant，但其他词库缺少</li>
+    <li>部分中英翻译质量参差（如 "air-conditioning" 释义为"的现在分词形式"）</li>
+    <li>音标格式不一致：有的用 IPA /xxx/，有的用拼音式如 "ðә"</li>
+    <li>多词短语如 "according to", "ought to" 包含空格，可能导致增量匹配、发音等问题</li>
+  </ul>
+</div>
+
+<!-- 问题识别 -->
+<h2>6. 交互体验与逻辑不足识别</h2>
+
+<div class="card">
+  <h3>6.1 学习逻辑层面</h3>
+  <table>
+    <tr><th>#</th><th>问题</th><th>影响</th><th>优先级</th></tr>
+    <tr>
+      <td>1</td>
+      <td><strong>无每日学习目标：</strong>未设新词/复习的每日上限，用户可能一次学太多或太少</td>
+      <td>学习节奏失控，缺乏成就感</td>
+      <td><span class="tag tag-bad">P0</span></td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td><strong>SRS 参数静态固化：</strong>间隔长度、难度系数不可配置，无法根据用户表现自适应</td>
+      <td>复习要么太频繁要么太稀疏</td>
+      <td><span class="tag tag-bad">P0</span></td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td><strong>学习新词无粒度区分：</strong>等同于"一次性记住"，没有"再复习一次"的中间选项</td>
+      <td>新词学习流与复习流割裂</td>
+      <td><span class="tag tag-warn">P1</span></td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td><strong>缺少拼写测试：</strong>纯被动识别（看到英文→回忆中文），无主动输出练习</td>
+      <td>只练"认读"不练"拼写"，记忆深度不足</td>
+      <td><span class="tag tag-warn">P1</span></td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td><strong>无复习提醒通知：</strong>依赖用户主动打开 App，无推送/提醒机制</td>
+      <td>遗忘率高，连续学习难以维持</td>
+      <td><span class="tag tag-warn">P1</span></td>
+    </tr>
+    <tr>
+      <td>6</td>
+      <td><strong>遗忘曲线仅为展示：</strong>不参与 SRS 决策，与复习引擎脱节</td>
+      <td>可视化与实际算法两张皮</td>
+      <td><span class="tag tag-ok">P2</span></td>
+    </tr>
+  </table>
+</div>
+
+<div class="card">
+  <h3>6.2 交互体验层面</h3>
+  <table>
+    <tr><th>#</th><th>问题</th><th>影响</th><th>优先级</th></tr>
+    <tr>
+      <td>7</td>
+      <td><strong>无学习激励/游戏化：</strong>没有积分、徽章、等级、打卡日历等激励机制</td>
+      <td>缺乏动力，难以坚持</td>
+      <td><span class="tag tag-bad">P0</span></td>
+    </tr>
+    <tr>
+      <td>8</td>
+      <td><strong>复习评分需要翻卡后才显示：</strong>必须先点卡片翻面才能看到评分按钮</td>
+      <td>增加一步操作，破坏流畅感</td>
+      <td><span class="tag tag-warn">P1</span></td>
+    </tr>
+    <tr>
+      <td>9</td>
+      <td><strong>无学习/复习中的退出确认：</strong>切换页面直接丢失当前进度</td>
+      <td>误触导航栏导致中断</td>
+      <td><span class="tag tag-warn">P1</span></td>
+    </tr>
+    <tr>
+      <td>10</td>
+      <td><strong>单词卡缺乏手势支持：</strong>无左右滑动手势（如左滑不认识/右滑认识）</td>
+      <td>操作较慢，不符合移动端习惯</td>
+      <td><span class="tag tag-ok">P2</span></td>
+    </tr>
+    <tr>
+      <td>11</td>
+      <td><strong>无深色模式：</strong>仅有一套亮色主题</td>
+      <td>夜间学习体验差</td>
+      <td><span class="tag tag-ok">P2</span></td>
+    </tr>
+    <tr>
+      <td>12</td>
+      <td><strong>首页信息密度较低：</strong>复习预览仅显示词条 chip，无可操作入口</td>
+      <td>首页利用率不高</td>
+      <td><span class="tag tag-ok">P3</span></td>
+    </tr>
+  </table>
+</div>
+
+<div class="card">
+  <h3>6.3 性能与技术层面</h3>
+  <table>
+    <tr><th>#</th><th>问题</th><th>影响</th><th>优先级</th></tr>
+    <tr>
+      <td>13</td>
+      <td><strong>大词库文件（toefl 2.2MB）加载慢：</strong>首次打开托福词库需下载2MB+的JS</td>
+      <td>首屏加载慢，移动网络下明显</td>
+      <td><span class="tag tag-warn">P1</span></td>
+    </tr>
+    <tr>
+      <td>14</td>
+      <td><strong>localStorage 同步读写：</strong>每次 saveState() 都是同步 JSON.stringify</td>
+      <td>大量数据时可能阻塞 UI</td>
+      <td><span class="tag tag-ok">P2</span></td>
+    </tr>
+    <tr>
+      <td>15</td>
+      <td><strong>词库懒加载无进度指示：</strong>切换词库时无 loading 状态</td>
+      <td>用户不知道是否在加载</td>
+      <td><span class="tag tag-ok">P3</span></td>
+    </tr>
+    <tr>
+      <td>16</td>
+      <td><strong>单文件 JS (783行)：</strong>所有逻辑混在 app.js 中，无模块拆分</td>
+      <td>维护困难，新功能开发易冲突</td>
+      <td><span class="tag tag-warn">P1</span></td>
+    </tr>
+  </table>
+</div>
+
+<div class="card">
+  <h3>6.4 商业化准备层面</h3>
+  <table>
+    <tr><th>#</th><th>问题</th><th>影响</th><th>优先级</th></tr>
+    <tr>
+      <td>17</td>
+      <td><strong>无用户账户体系：</strong>当前完全是匿名本地应用</td>
+      <td>无法做付费、同步、多设备</td>
+      <td><span class="tag tag-bad">P0 (架构预留)</span></td>
+    </tr>
+    <tr>
+      <td>18</td>
+      <td><strong>无后端服务：</strong>纯静态前端，无法支撑云端功能</td>
+      <td>数据同步、推送、支付均无法实现</td>
+      <td><span class="tag tag-bad">P0 (架构预留)</span></td>
+    </tr>
+    <tr>
+      <td>19</td>
+      <td><strong>无内容付费体系：</strong>没有"免费/付费"词库区分</td>
+      <td>无法实现内购</td>
+      <td><span class="tag tag-warn">P1 (架构预留)</span></td>
+    </tr>
+    <tr>
+      <td>20</td>
+      <td><strong>无数据统计/埋点：</strong>无法追踪用户行为和学习效果</td>
+      <td>无法做数据驱动的产品优化</td>
+      <td><span class="tag tag-ok">P2</span></td>
+    </tr>
+  </table>
+</div>
+
+<!-- 优化建议 -->
+<h2>7. 优化建议清单</h2>
+
+<div class="card">
+  <h3>7.1 第一阶段：学习逻辑核心优化（当前优先）</h3>
+  <table>
+    <tr><th>#</th><th>优化项</th><th>详细说明</th><th>优先级</th></tr>
+    <tr>
+      <td>A1</td>
+      <td><strong>引入每日学习目标系统</strong></td>
+      <td>设置每日新词上限(默认20)、每日复习上限(默认100)。首页展示今日进度条和完成状态。支持用户自定义。</td>
+      <td><span class="tag tag-bad">P0</span></td>
+    </tr>
+    <tr>
+      <td>A2</td>
+      <td><strong>SRS 算法升级为 SM-2 变体</strong></td>
+      <td>引入 ease factor（难度系数），根据用户评分动态调整间隔。对新词学习也引入初始 ease factor。参考 Anki/SuperMemo 的成熟方案。</td>
+      <td><span class="tag tag-bad">P0</span></td>
+    </tr>
+    <tr>
+      <td>A3</td>
+      <td><strong>复习队列智能排序</strong></td>
+      <td>按 overdue 程度（实际时间 / 计划间隔）排序，最该复习的优先展示。引入"间隔敏感度"权重。</td>
+      <td><span class="tag tag-warn">P1</span></td>
+    </tr>
+    <tr>
+      <td>A4</td>
+      <td><strong>新词学习增加"再看看"选项</strong></td>
+      <td>在学习新词时增加三档操作：认识了(进SRS) / 再看看(加入本轮循环末尾) / 跳过</td>
+      <td><span class="tag tag-warn">P1</span></td>
+    </tr>
+    <tr>
+      <td>A5</td>
+      <td><strong>增加拼写测试模式</strong></td>
+      <td>"听音写词"或"看中文写英文"的主动输出练习，作为复习的补充模式</td>
+      <td><span class="tag tag-warn">P1</span></td>
+    </tr>
+    <tr>
+      <td>A6</td>
+      <td><strong>复习提醒通知</strong></td>
+      <td>利用 Push API / Notification API，在每日设定时间推送复习提醒。PWA + 桌面端可用。</td>
+      <td><span class="tag tag-warn">P1</span></td>
+    </tr>
+  </table>
+</div>
+
+<div class="card">
+  <h3>7.2 第二阶段：激励与体验优化</h3>
+  <table>
+    <tr><th>#</th><th>优化项</th><th>详细说明</th><th>优先级</th></tr>
+    <tr>
+      <td>B1</td>
+      <td><strong>打卡日历 + 连续学习可视化</strong></td>
+      <td>日历热力图展示学习记录，连续天数徽章，周/月统计报告</td>
+      <td><span class="tag tag-bad">P0</span></td>
+    </tr>
+    <tr>
+      <td>B2</td>
+      <td><strong>积分/成就系统</strong></td>
+      <td>学习得分、等级称号、里程碑成就（如"掌握100词""连续7天"等），排行榜（好友/社区）</td>
+      <td><span class="tag tag-warn">P1</span></td>
+    </tr>
+    <tr>
+      <td>B3</td>
+      <td><strong>滑动卡片交互</strong></td>
+      <td>复习时支持左滑"不认识"、右滑"认识"、上滑"模糊"，类似 Tinder 体验</td>
+      <td><span class="tag tag-ok">P2</span></td>
+    </tr>
+    <tr>
+      <td>B4</td>
+      <td><strong>深色模式</strong></td>
+      <td>CSS 变量驱动，跟随系统或手动切换</td>
+      <td><span class="tag tag-ok">P2</span></td>
+    </tr>
+    <tr>
+      <td>B5</td>
+      <td><strong>学习过程动效优化</strong></td>
+      <td>评分后的过渡动画（正确 green pulse / 错误 red shake），进度条平滑过渡</td>
+      <td><span class="tag tag-ok">P3</span></td>
+    </tr>
+    <tr>
+      <td>B6</td>
+      <td><strong>首页信息强化</strong></td>
+      <td>本周趋势图、最近学习热力、距目标完成百分比、鼓励性文案</td>
+      <td><span class="tag tag-ok">P3</span></td>
+    </tr>
+  </table>
+</div>
+
+<div class="card">
+  <h3>7.3 第三阶段：技术架构升级</h3>
+  <table>
+    <tr><th>#</th><th>优化项</th><th>详细说明</th><th>优先级</th></tr>
+    <tr>
+      <td>C1</td>
+      <td><strong>模块化重构</strong></td>
+      <td>将 app.js 拆分为独立模块：srs-engine.js, storage.js, ui-renderer.js, book-loader.js, audio.js 等。引入 ES modules 或 bundler(Vite)。</td>
+      <td><span class="tag tag-bad">P0</span></td>
+    </tr>
+    <tr>
+      <td>C2</td>
+      <td><strong>IndexedDB 替代 localStorage</strong></td>
+      <td>迁移到 IndexedDB：容量更大、异步读写、支持事务、可建索引。保留 localStorage 仅用于小量配置。</td>
+      <td><span class="tag tag-warn">P1</span></td>
+    </tr>
+    <tr>
+      <td>C3</td>
+      <td><strong>词库按需加载优化</strong></td>
+      <td>词库 JSON 拆分（单词列表 + 详细释义分离），按需加载详细数据。考虑压缩传输。</td>
+      <td><span class="tag tag-warn">P1</span></td>
+    </tr>
+    <tr>
+      <td>C4</td>
+      <td><strong>音频本地缓存</strong></td>
+      <td>在 SW 中缓存常用词的发音音频，真正实现离线发音</td>
+      <td><span class="tag tag-ok">P2</span></td>
+    </tr>
+    <tr>
+      <td>C5</td>
+      <td><strong>数据导出/导入</strong></td>
+      <td>支持 JSON 格式的学习数据导出/导入，作为手动备份/迁移方案</td>
+      <td><span class="tag tag-ok">P2</span></td>
+    </tr>
+  </table>
+</div>
+
+<div class="card">
+  <h3>7.4 第四阶段：商业化架构预留</h3>
+  <table>
+    <tr><th>#</th><th>优化项</th><th>详细说明</th><th>优先级</th></tr>
+    <tr>
+      <td>D1</td>
+      <td><strong>用户系统架构设计</strong></td>
+      <td>预留 AuthProvider 接口层（支持邮箱/手机/微信/OAuth），用户资料模型（uid, email, nickname, avatar, created_at, subscription_tier）</td>
+      <td><span class="tag tag-bad">P0 (设计)</span></td>
+    </tr>
+    <tr>
+      <td>D2</td>
+      <td><strong>云端同步架构</strong></td>
+      <td>设计 SyncEngine：本地优先(local-first) + 云端备份，增量同步（CRDT 或 last-write-wins），冲突解决策略。预留 SyncProvider 接口。</td>
+      <td><span class="tag tag-bad">P0 (设计)</span></td>
+    </tr>
+    <tr>
+      <td>D3</td>
+      <td><strong>后端 API 设计</strong></td>
+      <td>RESTful API 蓝图：/auth/*, /sync/*, /user/*, /subscription/*。选择技术栈（Node.js/Go/Python），数据库选型（PostgreSQL + Redis）。</td>
+      <td><span class="tag tag-warn">P1 (设计)</span></td>
+    </tr>
+    <tr>
+      <td>D4</td>
+      <td><strong>付费体系预留</strong></td>
+      <td>SubscriptionTier 模型（Free/Basic/Pro），功能权限矩阵（词库解锁、高级功能、去广告），IAP 预留接口（Apple/Google/微信支付）</td>
+      <td><span class="tag tag-warn">P1 (设计)</span></td>
+    </tr>
+    <tr>
+      <td>D5</td>
+      <td><strong>数据埋点与统计</strong></td>
+      <td>设计 EventTracker 接口层，核心事件定义（学习开始/完成、评分、功能使用），为产品迭代和商业化分析铺路</td>
+      <td><span class="tag tag-ok">P2</span></td>
+    </tr>
+  </table>
+</div>
+
+<!-- 总结 -->
+<h2>8. 总结与路线图</h2>
+
+<div class="card">
+  <h3>8.1 项目现状总评</h3>
+  <table>
+    <tr><th>维度</th><th>评分</th><th>说明</th></tr>
+    <tr><td>核心学习算法</td><td><span class="tag tag-warn">⭐⭐⭐</span></td><td>SRS 基础框架正确，但参数固化、缺少自适应</td></tr>
+    <tr><td>用户体验</td><td><span class="tag tag-warn">⭐⭐⭐</span></td><td>卡片翻转体验流畅，但缺少激励和交互细节</td></tr>
+    <tr><td>数据质量</td><td><span class="tag tag-warn">⭐⭐⭐</span></td><td>词库覆盖广，但各词库质量参差不齐</td></tr>
+    <tr><td>代码架构</td><td><span class="tag tag-bad">⭐⭐</span></td><td>单文件单体，无模块化，难以扩展</td></tr>
+    <tr><td>离线能力</td><td><span class="tag tag-ok">⭐⭐⭐⭐</span></td><td>PWA + SW + 离线释义包，完整性好</td></tr>
+    <tr><td>商业化准备</td><td><span class="tag tag-bad">⭐</span></td><td>基本为零，纯本地应用</td></tr>
+  </table>
+</div>
+
+<div class="card">
+  <h3>8.2 推荐执行路线图</h3>
+  <div class="p-grid">
+    <div class="card" style="margin:0">
+      <h4 style="color:var(--bad)">🔴 Phase 1：核心改造（1-2周）</h4>
+      <ul style="font-size:14px">
+        <li>A1 每日学习目标</li>
+        <li>A2 SM-2 算法升级</li>
+        <li>B1 打卡日历</li>
+        <li>C1 模块化重构</li>
+        <li>D1 用户系统架构设计</li>
+        <li>D2 云端同步架构设计</li>
+      </ul>
+    </div>
+    <div class="card" style="margin:0">
+      <h4 style="color:var(--mid)">🟡 Phase 2：体验增强（2-3周）</h4>
+      <ul style="font-size:14px">
+        <li>A3 复习队列排序</li>
+        <li>A4 新词"再看看"</li>
+        <li>A5 拼写测试</li>
+        <li>A6 复习提醒</li>
+        <li>B2 积分成就系统</li>
+        <li>C2 IndexedDB 迁移</li>
+      </ul>
+    </div>
+    <div class="card" style="margin:0">
+      <h4 style="color:var(--primary)">🔵 Phase 3：体验打磨（3-4周）</h4>
+      <ul style="font-size:14px">
+        <li>B3 滑动手势</li>
+        <li>B4 深色模式</li>
+        <li>B5 动效优化</li>
+        <li>C3 词库加载优化</li>
+        <li>C5 数据导出/导入</li>
+        <li>D5 数据埋点设计</li>
+      </ul>
+    </div>
+    <div class="card" style="margin:0">
+      <h4 style="color:var(--good)">🟢 Phase 4：商业化落地（持续）</h4>
+      <ul style="font-size:14px">
+        <li>D3 后端 API 开发</li>
+        <li>D4 付费体系实现</li>
+        <li>用户系统上线</li>
+        <li>云端同步上线</li>
+        <li>原生 App 打包（Capacitor/Cordova）</li>
+        <li>应用市场上架</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:24px">
+  <h3>8.3 关键技术决策建议</h3>
+  <table>
+    <tr><th>决策点</th><th>推荐方案</th><th>理由</th></tr>
+    <tr>
+      <td>前端框架</td>
+      <td>保持原生 JS 或轻量引入 Preact/Alpine.js</td>
+      <td>词库数据量大（2MB+），引入 React/Vue 会显著增加 bundle 体积。PWA 场景首屏性能优先。</td>
+    </tr>
+    <tr>
+      <td>构建工具</td>
+      <td>Vite</td>
+      <td>轻量、快速 HMR、原生 ESM 支持，适合中大型 PWA</td>
+    </tr>
+    <tr>
+      <td>本地存储</td>
+      <td>IndexedDB (Dexie.js)</td>
+      <td>异步、容量大、可建索引、适合大量学习记录</td>
+    </tr>
+    <tr>
+      <td>SRS 算法</td>
+      <td>SM-2 变体 (FSRS 为长期目标)</td>
+      <td>SM-2 成熟稳定、实现简单；FSRS 更精确但复杂度高，可后续迭代</td>
+    </tr>
+    <tr>
+      <td>后端语言</td>
+      <td>Node.js (Express/Fastify) 或 Go (Gin)</td>
+      <td>Node.js 与前端语言统一；Go 性能更好，适合高并发</td>
+    </tr>
+    <tr>
+      <td>原生 App</td>
+      <td>Capacitor (推荐) 或 Tauri</td>
+      <td>Capacitor 将 PWA 打包为原生应用；Tauri 更轻量（Rust 后端），但生态较新</td>
+    </tr>
+  </table>
+</div>
+
+<p style="text-align:center; color:var(--ink-faint); margin-top:32px; font-size:13px">
+  WordSteps 阶梯背单词 · 项目现状分析报告 · 生成于 2026-07-25
+</p>
+
+</div>
+</body>
+</html>
