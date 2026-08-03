@@ -96,7 +96,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260803a";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
+  var APP_VER = "20260803b";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
@@ -1000,12 +1000,8 @@ function fillAnalysis(node, bw) {
     // 优先 1) 整词为词根；2) prefix+root+suffix（root 在 ROOT_SET）；3) 递归向内
     function decomp(word, depth) {
       if (depth > 4 || word.length < 3) return null;
-      // 1) 整词就是词根
+      // 1) 整词就是词根（仅 ROOT_SET 内的真词基，如 work/wait/turn）
       if (ROOT_SET.has(word)) return [{type:'root', val:word}];
-      // 1b) 单词自身即词根（含 root 字段的非拉丁词汇，如 weather、brother）
-      if (bw.root && bw.root === bw.w.toLowerCase() && depth === 0) {
-        return [{type:'root', val:word}];
-      }
       var cands = [];
       // 2) prefix + suffix（root 在 ROOT_SET）
       for (var pi = 0; pi < preKeys.length; pi++) {
