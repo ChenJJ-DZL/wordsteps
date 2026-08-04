@@ -96,7 +96,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260804a";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
+  var APP_VER = "20260804b";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
@@ -1272,7 +1272,8 @@ function fillAnalysis(node, bw) {
           state.settings.offlinePkg = { books: true, audio: false, ver: APP_VER };
           saveState();
           _precaching = false; if (preCache) preCache.blocked = false;
-          setTxt("离线包 完成"); setTimeout(function () { setTxt("离线包"); }, 3000);
+          setTxt("离线包 完成"); setTimeout(function () { setTxt("下载离线包"); }, 3000);
+          refreshOfflineBtn();
           return;
         }
         setTxt("离线包 收集音频…");
@@ -1286,7 +1287,8 @@ function fillAnalysis(node, bw) {
             saveState();
             _precaching = false; if (preCache) preCache.blocked = false;
             setTxt("离线包 完成" + (res.fail ? "（失败 " + res.fail + "）" : ""));
-            setTimeout(function () { setTxt("离线包"); }, 4000);
+            setTimeout(function () { setTxt("下载离线包"); }, 4000);
+            refreshOfflineBtn();
           });
         }, 50);
       });
@@ -1296,9 +1298,64 @@ function fillAnalysis(node, bw) {
     if (!_precaching) return;
     offlinePkg.cancel = true;
   }
-  /* 首页「离线包」按钮 + 三档弹层 */
+  /* ---------- 删除离线包（释放空间，学习记录不受影响） ---------- */
+  function refreshOfflineBtn() {
+    var del = document.getElementById("offline-del");
+    if (!del) return;
+    del.hidden = !state.settings.offlinePkg;
+  }
+  // 清空 IndexedDB 中的全部音频（离线包的主体，约 150-400MB）
+  function clearAudioIdb(cb) {
+    idbAudioReady(function (db) {
+      if (!db) { if (cb) cb(); return; }
+      try {
+        var tx = db.transaction("blobs", "readwrite");
+        tx.objectStore("blobs").clear();
+        tx.oncomplete = function () { if (cb) cb(); };
+        tx.onerror = function () { if (cb) cb(); };
+      } catch (e) { if (cb) cb(); }
+    });
+  }
+  // 清空 SW 缓存中的词书 JS 与音频（保留 SHELL：manifest.js / en_defs.js 等）
+  function clearOfflineCache(cb) {
+    if (!("caches" in window)) { if (cb) cb(); return; }
+    caches.keys().then(function (keys) {
+      var tasks = keys.filter(function (k) { return /^wordsteps-v\d+$/.test(k); }).map(function (name) {
+        return caches.open(name).then(function (cache) {
+          return cache.keys().then(function (reqs) {
+            var dels = reqs.filter(function (req) {
+              var u = req.url;
+              if (u.indexOf("/books/manifest.js") !== -1 || u.indexOf("/books/en_defs.js") !== -1) return false;  // SHELL 保留
+              return u.indexOf("/books/audio/") !== -1 || (u.indexOf("/books/") !== -1 && u.indexOf(".js") !== -1);
+            });
+            return Promise.all(dels.map(function (r) { return cache.delete(r); }));
+          });
+        });
+      });
+      Promise.all(tasks).then(function () { if (cb) cb(); }).catch(function () { if (cb) cb(); });
+    }).catch(function () { if (cb) cb(); });
+  }
+  function deleteOfflinePackage() {
+    if (_precaching) return;
+    if (!confirm("删除离线包将释放约 150-400MB 空间（已下载的词库与发音音频），你的学习记录不受影响。确定删除？")) return;
+    _precaching = true;
+    var btn = document.getElementById("offline-btn");
+    function setTxt(t) { if (btn) btn.textContent = t; }
+    setTxt("删除中…");
+    clearAudioIdb(function () {
+      clearOfflineCache(function () {
+        if (state.settings.offlinePkg) { delete state.settings.offlinePkg; saveState(); }
+        _precaching = false;
+        setTxt("下载离线包"); refreshOfflineBtn();
+      });
+    });
+  }
+  /* 首页「离线包」按钮 + 三档弹层 + 删除按钮 */
   var offlineBtn = document.getElementById("offline-btn");
   var offlineMenu = document.getElementById("offline-menu");
+  var offlineDel = document.getElementById("offline-del");
+  if (offlineDel) offlineDel.addEventListener("click", deleteOfflinePackage);
+  refreshOfflineBtn();
   if (offlineBtn && offlineMenu) {
     offlineBtn.addEventListener("click", function (e) {
       e.stopPropagation();

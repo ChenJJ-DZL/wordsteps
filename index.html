@@ -124,7 +124,10 @@
           <button class="inc-help" id="inc-help" aria-label="增量说明" title="增量说明">?</button>
         </div>
       </div>
-      <button class="offline-btn" id="offline-btn" title="预下载全部词书与发音，实现完全离线">离线包</button>
+      <div class="offline-row">
+        <button class="offline-btn" id="offline-btn" title="预下载全部词书与发音，实现完全离线">下载离线包</button>
+        <button class="offline-btn offline-del" id="offline-del" title="删除已下载的离线包（释放空间，学习记录不受影响）" hidden>删除</button>
+      </div>
       <div id="offline-menu" class="popover" hidden>
         <div class="offline-title">下载离线包</div>
         <button class="offline-opt" data-mode="full">全量双口音（约 150MB）</button>

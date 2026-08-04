@@ -262,13 +262,16 @@ body {
 }
 .popover[hidden] { display: none; }
 /* 完全离线包按钮与菜单 */
+.offline-row { display: flex; gap: 10px; margin-top: 10px; }
 .offline-btn {
-  display: block; width: 100%; margin-top: 10px;
+  flex: 1; min-width: 0;
   border: 1.5px dashed var(--line); border-radius: var(--radius);
   background: var(--surface); color: var(--primary); font-size: 14px; font-weight: 700;
-  padding: 12px; cursor: pointer; box-shadow: var(--shadow);
+  padding: 12px; cursor: pointer; box-shadow: var(--shadow); white-space: nowrap;
 }
 .offline-btn:hover { border-color: var(--primary); background: var(--primary-soft); }
+.offline-btn.offline-del { flex: 0 0 76px; color: var(--bad); border-style: solid; }
+.offline-btn.offline-del:hover { border-color: var(--bad); background: var(--bad-soft); }
 #offline-menu { max-width: 260px; padding: 8px; }
 .offline-title { font-weight: 700; padding: 4px 6px 8px; font-size: 14px; }
 .offline-opt {
