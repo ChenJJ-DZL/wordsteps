@@ -96,7 +96,7 @@
   var BOOKS_DATA = {};                 // id -> book object (lazy loaded)
   var STORE_KEY = "vocab_app_v2";
   var DAY = 86400000;
-  var APP_VER = "20260803b";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
+  var APP_VER = "20260804a";           // 版本号：强制刷新缓存（词根中文释义 + 词法行对齐 + 长词自适应字号）
   var EN_DEFS = window.BOOK_EN_DEFS || {};   // 构建期生成的离线英文释义包（en + 发音 URL），键=归一化小写词
   function normJs(w) { return (w || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }  // 与 rebuild_v3.py 的 norm 对齐
   // 间隔基准值（用于新词初始间隔 & 旧数据迁移），实际复习间隔由自适应算法动态调整
@@ -461,7 +461,7 @@
     var rs = bookRecs(id), r = rs[word];
     if (!r) {
       var now = Date.now();
-      r = rs[word] = { word: word, firstLearned: now, lastReviewed: now, nextReview: now + T_4H, interval: T_4H, reps: 0, lapses: 0, lastRating: "new", status: "learning" };
+      r = rs[word] = { word: word, firstLearned: now, lastReviewed: now, nextReview: now + T_4H, interval: T_4H, reps: 0, lapses: 0, lastRating: "new", status: "learning", wrongDay: 0, wrongCount: 0 };
       saveState();
     } else {
       migrateRecord(r);  // 懒迁移旧格式记录
@@ -471,6 +471,7 @@
   function scheduleReview(id, word, rating) {
     var r = ensureRecord(id, word), now = Date.now();
     var iv = r.interval || T_4H;
+    var pushTomorrow = false;   // 连错3次 → 推到明天复习
     // 首次复习(间隔=T_4H 且 reps=0)：认识→进入日级循环(1天)，不认识→重置4小时
     if (r.reps === 0 && rating === "know") {
       iv = T_1D; r.status = "review"; recordReview(r);
@@ -486,10 +487,25 @@
       recordReview(r);
     } else {
       recordForget(r);                        // 追踪：记录遗忘事件（双层：间隔段+自然日）
-      iv = T_10MIN; r.lapses = (r.lapses || 0) + 1;
+      r.lapses = (r.lapses || 0) + 1;
       r.status = "learning";
+      // 熟练间隔降级（不认识 → 间隔减半，下限4小时；下次认识从降级后继续增长）
+      iv = Math.max(Math.round((r.interval || T_4H) * 0.5), T_4H);
+      // 当日连续不认识计数（跨天自动归零；认识/模糊时清零见下方）
+      var sodNow = startOfDay(now);
+      if (r.wrongDay !== sodNow) { r.wrongDay = sodNow; r.wrongCount = 0; }
+      r.wrongCount = (r.wrongCount || 0) + 1;
+      // 同词当天连错3次 → 不再10分钟反复刷，改到明天复习（防挫败）
+      if (r.wrongCount >= 3) pushTomorrow = true;
     }
-    r.interval = iv; r.nextReview = now + iv; r.lastReviewed = now; r.reps = (r.reps || 0) + 1; r.lastRating = rating;
+    // 认识/模糊视为"本次记住了"，重置连错计数（同一词当天错→对→再错时重新累计）
+    if (rating !== "unknown") r.wrongCount = 0;
+    r.interval = iv; r.lastReviewed = now; r.reps = (r.reps || 0) + 1; r.lastRating = rating;
+    if (pushTomorrow) {
+      r.nextReview = startOfDay(now) + DAY;   // 明天 0 点到期（今天复习队列不再出现）
+    } else {
+      r.nextReview = now + (rating === "unknown" ? T_10MIN : iv);   // 不认识：10分钟后短复习；其余按间隔
+    }
     saveState();
   }
 
